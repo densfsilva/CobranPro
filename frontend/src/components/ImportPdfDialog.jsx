@@ -67,7 +67,7 @@ export default function ImportPdfDialog({ onImported }) {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Carregue o relatório PDF do seu ERP. O sistema lê o ficheiro e cria automaticamente as {t("invoiceLowerPlural")} com <strong>Nome</strong>, <strong>{t("taxId")}</strong>, <strong>Valor</strong> e <strong>Vencimento</strong>.
+              Carregue o relatório PDF do seu ERP — incluindo relatórios agrupados por cliente (ex.: Bling, com Nº doc., Vencimento e Valor por bloco de cliente). O sistema lê o ficheiro e cria automaticamente as {t("invoiceLowerPlural")} com <strong>Nome</strong>, <strong>{t("taxId")}</strong>, <strong>Valor</strong> e <strong>Vencimento</strong>.
             </p>
             <input ref={fileRef} type="file" accept=".pdf" data-testid="import-erp-file-input"
               className="w-full text-sm text-muted-foreground file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-brand file:text-white file:text-sm file:font-semibold hover:file:opacity-90 file:cursor-pointer" />

@@ -22,6 +22,13 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 10: Importação PDF Bling (agrupado por cliente)
+- Parser pdfplumber reescrito com estado: deteta linhas de cabeçalho de cliente (Nome + CPF/CNPJ, na mesma linha ou em linhas separadas — variante Bling "Cliente: X" / "CNPJ: Y") e associa todas as linhas de fatura seguintes a esse cliente até ao próximo bloco
+- Mapeamento de colunas: Nº doc. → invoice_number, Vencimento → due_date, Valor → amount (formatos PT/BR)
+- Filtro: ignora linhas de Total, Subtotal, cabeçalhos de página ("Nº doc. / Vencimento / Valor") e metadados do relatório (Período/Emitido)
+- Retrocompatível com o formato plano (cliente+NIF na linha da fatura); CPF_RE adicionado; dedup por invoice_number mantido
+- Testado: PDF Bling com 2 clientes (header same-line e linhas separadas) → 3 faturas criadas com cliente/CNPJ/valor/vencimento corretos; 39/39 pytest
+
 ### 2026-09-01 — Iteração 9: Módulo de Comunicação — Disparo de Cobranças
 - Email real via Resend (integração gerida Emergent, EMERGENT_EMAIL_KEY + EMAIL_FROM_NAME="CobranPro" em backend/.env; httpx adicionado): POST /api/charges/{id}/send-email com guard de segurança (_assert_safe_email — sem formulários, links apenas https/mailto, destinatário sempre do registo server-side), rate limit 1 email/hora por cobrança, tenant-scoped por empresa
 - Template de email profissional server-side: header com cor de marca + iniciais da empresa, nome do cliente, valor em dívida, dias de atraso, dados de pagamento (IBAN/PIX) e botão "Enviar Comprovativo" (mailto para o email da empresa); texto adapta-se ao país (Factura/Fatura, €/R$)
