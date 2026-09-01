@@ -36,11 +36,14 @@ export default function AuthPage() {
     <div className="min-h-screen bg-background flex">
       <div className="hidden lg:flex w-1/2 flex-col justify-between p-12 border-r border-border relative overflow-hidden">
         <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)", backgroundSize: "28px 28px" }} />
-        <div className="relative flex items-center gap-2">
-          <div className="w-9 h-9 rounded-lg bg-brand flex items-center justify-center">
-            <Wallet size={18} className="text-white" />
+        <div className="relative flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-brand flex items-center justify-center shadow-lg">
+            <Wallet size={20} className="text-white" />
           </div>
-          <span className="font-heading font-bold text-lg">CobranPro</span>
+          <div>
+            <p className="font-heading font-extrabold text-2xl tracking-tight leading-none">Cobranpro</p>
+            <p className="text-xs text-muted-foreground tracking-wide mt-0.5">Gestão de Cobranças Profissional</p>
+          </div>
         </div>
         <div className="relative space-y-6">
           <h1 className="font-heading text-4xl xl:text-5xl font-extrabold tracking-tight leading-tight">
@@ -59,17 +62,25 @@ export default function AuthPage() {
             ))}
           </div>
         </div>
-        <p className="relative text-xs text-muted-foreground">© 2026 CobranPro — Gestão de Cobranças Profissional</p>
+        <p className="relative text-xs text-muted-foreground">© 2026 Cobranpro — Gestão de Cobranças Profissional</p>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex flex-col items-center justify-center p-6">
+        <div className="lg:hidden flex items-center gap-2.5 mb-10" data-testid="auth-mobile-brand">
+          <div className="w-10 h-10 rounded-xl bg-brand flex items-center justify-center">
+            <Wallet size={18} className="text-white" />
+          </div>
+          <span className="font-heading font-extrabold text-2xl tracking-tight">Cobranpro</span>
+        </div>
         <div className="w-full max-w-sm space-y-8">
           <div className="space-y-2">
             <h2 className="font-heading text-3xl font-bold tracking-tight" data-testid="auth-title">
-              {mode === "login" ? "Entrar na sua conta" : "Criar conta de empresa"}
+              {mode === "login" ? "Bem-vindo de volta" : "Criar conta de empresa"}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {mode === "login" ? "Aceda ao seu painel de cobranças." : "Registe a sua empresa e comece a cobrar."}
+              {mode === "login"
+                ? "É um prazer vê-lo novamente. Aceda ao seu painel e continue a recuperar o que é seu."
+                : "Registe a sua empresa e comece a cobrar em minutos."}
             </p>
           </div>
           <form onSubmit={submit} className="space-y-4">

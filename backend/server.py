@@ -941,6 +941,17 @@ async def dashboard(ctx: dict = Depends(require_admin)):
             })
     followups.sort(key=lambda a: a["date"])
 
+    recent = await db.interactions.find({"company_id": company["id"]}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    charge_names = {}
+    if recent:
+        ids = list({r["charge_id"] for r in recent})
+        async for ch in db.charges.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "debtor_name": 1}):
+            charge_names[ch["id"]] = ch["debtor_name"]
+    activities = [
+        {"id": r["id"], "type": r["type"], "note": r["note"], "created_at": r["created_at"], "debtor_name": charge_names.get(r["charge_id"], "")}
+        for r in recent
+    ]
+
     return {
         "total_debt": round(total_debt, 2),
         "recovered": round(recovered, 2),
@@ -952,6 +963,7 @@ async def dashboard(ctx: dict = Depends(require_admin)):
         "negotiation_amount": round(sum(c["amount"] for c in negociacao), 2),
         "buckets": buckets,
         "followups": followups,
+        "recent_activities": activities,
     }
 
 

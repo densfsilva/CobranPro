@@ -22,6 +22,13 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 11: Branding e Acabamento (consolidação para apresentação)
+- White Label real: logótipo da empresa aparece no menu lateral E no topo do Dashboard (dashboard-logo); brand da app renomeada para "Cobranpro" (login, sidebar, título, EMAIL_FROM_NAME)
+- Página de Login premium: wordmark "Cobranpro" com tagline, heading "Bem-vindo de volta" + mensagem de boas-vindas, versão mobile com wordmark no topo (auth-mobile-brand)
+- Resumo de Atividades: GET /api/dashboard devolve recent_activities (últimas 5 interações com nome do devedor); cartão "Últimas 5 Ações" no Dashboard com ícone por tipo e hora
+- Limpeza técnica: gráfico de antiguidade passou a medir o contentor via ResizeObserver e renderiza BarChart com dimensões explícitas em px (warning width(-1)/height(-1) do Recharts eliminado); removeChild mantido eliminado (translate=no + spans + refresh ao fechar + keys compostas) — revalidado pelo testing agent (0 erros DOM em 4 runs / 14 rotas)
+- Logótipo demo "TF" carregado na empresa de demonstração
+
 ### 2026-09-01 — Iteração 10: Importação PDF Bling (agrupado por cliente)
 - Parser pdfplumber reescrito com estado: deteta linhas de cabeçalho de cliente (Nome + CPF/CNPJ, na mesma linha ou em linhas separadas — variante Bling "Cliente: X" / "CNPJ: Y") e associa todas as linhas de fatura seguintes a esse cliente até ao próximo bloco
 - Mapeamento de colunas: Nº doc. → invoice_number, Vencimento → due_date, Valor → amount (formatos PT/BR)

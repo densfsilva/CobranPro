@@ -86,7 +86,7 @@ export default function AppLayout({ children }) {
         <header className="h-[72px] border-b border-border flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 bg-background/80 backdrop-blur-xl z-10">
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Wallet size={16} className="text-brand" />
-            <span className="hidden sm:inline">CobranPro</span>
+            <span className="hidden sm:inline">Cobranpro</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden sm:inline text-sm text-muted-foreground">{user?.full_name || company.email}</span>

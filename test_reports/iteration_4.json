@@ -1,0 +1,43 @@
+{
+  "summary": "Frontend-only round 4 (Playwright, 4 runs, public URL). Validated: (1) ZERO removeChild/NotFoundError/insertBefore/'same key' DOM errors across every flow (login premium desktop+mobile 375px, dashboard, pendentes, new-charge dialog open/close x2, import ERP dialog open/close x2, real PDF import into import.teste with dedup, charge detail, WhatsApp + Email modals, timeline, negociacao, recebidos, relatorios, configuracoes, equipa, perfil, logout); (2) White Label logo is a real <img> (naturalWidth=200) in both sidebar (company-logo-img) and dashboard top (dashboard-logo); (3) brand color switch to #D97706 applies to --brand, primary buttons, active nav item, accents and persists across reload — REVERTED to #2563EB and re-verified; (4) 'Últimas 5 Ações' card renders 4 activities (all that exist in DB) with type icon + summary + debtor name + timestamp; (5) KPI regression exact match. Only remaining defect: the Recharts width(-1)/height(-1) warning is STILL logged on every dashboard paint (was claimed fixed).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard — gráfico de antiguidade", "issues": ["NOT FIXED: Recharts console warning 'The width(-1) and height(-1) of chart should be greater than 0' still fires 2x per dashboard mount (reproduced in all 4 runs). The mount-gate did not solve it — ResponsiveContainer still measures before layout. Fix: give the wrapper an explicit pixel height/width or pass minWidth={0} minHeight={208} / debounce=1 to ResponsiveContainer", "Layout: the 'Antiguidade da Dívida Pendente' card is as tall as the debtor table (~600px) but the chart only uses the top h-52 (208px), leaving ~250px of dead space; bars are tiny (max value 1). Consider letting the chart fill the card height"]},
+      {"screen": "Ficha de cobrança — Timeline (Próximo Contacto) e Documentos", "issues": ["Native browser date input is used (placeholder shows US format 'mm/dd/yyyy') instead of the shadcn Calendar/Popover — inconsistent with the PT/BR locale of the app", "Tipo de documento uses a raw native <select> ('Nota Fiscal') instead of the shadcn Select, visually inconsistent with the rest of the UI"]},
+      {"screen": "White Label logo asset", "issues": ["The uploaded demo logo renders correctly as an image but visually it is an almost-plain blue square — the 'TF' lettering is not legible at 40x40 (sidebar/dashboard) nor at 80x80 (settings preview). Functionality is fine; if it will be shown in a demo, replace with a higher-contrast asset"]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_4.json"],
+  "action_items": [
+    "Fix the Recharts ResponsiveContainer width(-1)/height(-1) warning on the Dashboard aging chart (only remaining console noise; blocks the 'zero console output' goal)",
+    "Optional: replace native date input in ChargeTimeline (Próximo Contacto) with the shadcn Calendar and the native <select> in Documentos with shadcn Select",
+    "Optional: reduce dead space in the aging-chart card / use a higher-contrast demo logo asset"
+  ],
+  "critical_code_review_comments": [
+    "index.html translate=no + notranslate and the ImportPdfDialog importedRef deferral are effective: 4 independent runs covering 14 routes, 8 dialog open/close cycles and a real PDF import produced 0 pageerrors and 0 DOM mutation errors",
+    "Dashboard.jsx renders the activity card items keyed by interaction id — no duplicate-key warnings observed",
+    "Brand color is applied through the --brand CSS variable at the html element, so all bg-brand/text-brand consumers update instantly on save and after reload (verified computed styles: rgb(217,119,6) then back to rgb(37,99,235))"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested this round (frontend-only request)", "frontend": "100% of functional checks passed; 1 open console warning (Recharts)"},
+  "seed_data_creation": "None. PDF import into import.teste@example.com returned '0 facturas criada(s) · 3 linha(s) ignorada(s)' (dedup as expected) so no new data was created; demo company untouched. Brand color changed to #D97706 and reverted to #2563EB (verified after full reload).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "/app/memory/test_credentials.md — admin denis.ferreira0909@gmail.com / Cobrancas2026!; import.teste@example.com / teste123456",
+  "detailed_results": {
+    "removeChild_all_flows": "PASS — 0 occurrences of removeChild / NotFoundError / Failed to execute / insertBefore / 'same key' in any of the 4 runs (console error+warning and pageerror listeners active)",
+    "login_premium_desktop": "PASS — wordmark 'Cobranpro' + tagline 'Gestão de Cobranças Profissional', heading 'Bem-vindo de volta', welcome copy 'É um prazer vê-lo novamente...', footer © 2026, bucket legend 1-15d/16-30d/31-60d/>60d",
+    "login_premium_mobile_375": "PASS — auth-mobile-brand visible at 375px with 'Cobranpro'; hidden on desktop",
+    "white_label_logo": "PASS — company-logo-img and dashboard-logo are both <img> with data:image/png base64, naturalWidth=200",
+    "brand_color_switch": "PASS — #D97706: --brand=#D97706, new-charge-btn bg rgb(217,119,6), active nav color rgb(217,119,6), dashboard-company-name accent rgb(217,119,6), brand-color-dot rgb(217,119,6); persisted after reload; REVERTED to #2563EB and re-verified after reload",
+    "activity_card": "PASS — dashboard-activity-card present, 4 items (all interactions in DB), each with 1 type icon, summary text ('WhatsApp preparado (template: 1º Lembrete)...', 'Teste cobrador: liguei hoje', ...), debtor name and date/time",
+    "kpi_regression": "PASS — 15 341,25 € / 640,00 € / 8 510,75 € / 14%; 2 follow-up alerts banner rendered without React key warnings",
+    "pdf_import_dedup": "PASS — import.teste pendentes count 19 before and after; result '0 facturas criada(s) · 3 linha(s) ignorada(s)'; dialog reopened/closed 2x with no errors",
+    "modals": "PASS — WhatsApp modal (3 templates) and Email modal open/close via Escape without DOM errors; timeline renders 9 timeline elements"
+  },
+  "context_for_next_testing_agent": "Login testids: auth-email-input / auth-password-input / auth-submit-btn. Brand color testids: preset-color-<HEXNOHASH> (e.g. preset-color-D97706, preset-color-2563EB), color-hex-display, branding-settings-save-btn; brand is read from CSS var --brand on <html>. Always revert brand color to #2563EB. Do not import PDFs into the demo company. Demo pendentes count is 5 — read it only after ~2s wait, otherwise you read the pre-fetch 0. Only open issue: Recharts width/height(-1) warning on Dashboard.",
+  "rca_of_the_issue": "Recharts warning: the aging chart is inside a fixed h-52 wrapper but ResponsiveContainer is measured on the first paint before the flex/grid parent has resolved its width, so it reports -1/-1 twice. Gating the render on mount does not help because the measurement still happens in the same frame as the first layout; supplying explicit minWidth/minHeight or a numeric height (or debounce) removes the warning."
+}

@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, TrendingUp, AlertTriangle, CheckCircle2, Banknote } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { Plus, Search, TrendingUp, AlertTriangle, CheckCircle2, Banknote, PhoneCall, MessageCircle, Mail, StickyNote } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import { api } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
@@ -19,9 +19,15 @@ const KPI_CONFIG = [
   { key: "success_rate", label: "Taxa de Sucesso", icon: TrendingUp, testid: "dashboard-kpi-success-rate", suffix: "%" },
 ];
 
+const fmtDT = (iso) => new Date(iso).toLocaleString("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+const ACT_ICONS = { chamada: PhoneCall, whatsapp: MessageCircle, email: Mail, nota: StickyNote };
+
 export default function Dashboard() {
   const { company } = useAuth();
   const [stats, setStats] = useState(null);
+  const chartRef = useRef(null);
+  const [chartSize, setChartSize] = useState(null);
   const [charges, setCharges] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("todas");
@@ -35,6 +41,16 @@ export default function Dashboard() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) setChartSize({ width: Math.floor(width), height: Math.floor(height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const filtered = useMemo(() => {
     return charges.filter((c) => {
@@ -54,7 +70,12 @@ export default function Dashboard() {
     <div className="space-y-6" data-testid="dashboard-page">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-brand" data-testid="dashboard-company-name">{company.company_name}</p>
+          <div className="flex items-center gap-3 mb-1">
+            {company.logo_base64 && (
+              <img src={company.logo_base64} alt={company.company_name} className="w-10 h-10 rounded-lg object-contain bg-white/5 border border-border" data-testid="dashboard-logo" />
+            )}
+            <p className="text-xs font-semibold uppercase tracking-widest text-brand" data-testid="dashboard-company-name">{company.company_name}</p>
+          </div>
           <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">Dashboard Financeiro</h1>
           <p className="text-sm text-muted-foreground mt-1">Visão geral das suas cobranças e antiguidade da dívida.</p>
         </div>
@@ -115,11 +136,11 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5">
+        <div className="bg-card border border-border rounded-xl p-5 flex flex-col">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">Antiguidade da Dívida Pendente</p>
-          <div className="h-52" data-testid="aging-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
+          <div className="flex-1 min-h-[260px] w-full" data-testid="aging-chart" ref={chartRef}>
+            {chartSize && (
+              <BarChart width={chartSize.width} height={chartSize.height} data={chartData} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#8b94a7" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#8b94a7" }} axisLine={false} tickLine={false} allowDecimals={false} />
                 <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ background: "#111827", border: "1px solid #1F2937", borderRadius: 8, fontSize: 12 }} />
@@ -127,7 +148,7 @@ export default function Dashboard() {
                   {chartData.map((d, i) => <Cell key={i} fill={d.fill} />)}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -204,6 +225,29 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {stats?.recent_activities?.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-5" data-testid="dashboard-activity-card">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Últimas 5 Ações</p>
+          <div className="divide-y divide-border/50">
+            {stats.recent_activities.map((a) => {
+              const Icon = ACT_ICONS[a.type] || StickyNote;
+              return (
+                <div key={a.id} className="flex items-center gap-3 py-2.5" data-testid={`dashboard-activity-${a.id}`}>
+                  <div className="w-8 h-8 rounded-full bg-brand-soft flex items-center justify-center shrink-0">
+                    <Icon size={14} className="text-brand" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm truncate">{a.note}</p>
+                    {a.debtor_name && <p className="text-xs text-muted-foreground">{a.debtor_name}</p>}
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0 font-mono-num">{fmtDT(a.created_at)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <ChargeFormDialog open={formOpen} onOpenChange={setFormOpen} onSaved={load} />
     </div>
