@@ -1,4 +1,6 @@
 """CobranPro backend API regression tests."""
+import os
+import random
 import time
 import uuid
 from datetime import date, timedelta
@@ -277,6 +279,109 @@ class TestBranding:
     def test_oversized_logo_rejected(self, authed):
         r = authed.put(f"{API}/branding", json={"logo_base64": "x" * 2_000_001})
         assert r.status_code == 400
+
+    # Dados da Instituição — address field
+    def test_address_update_and_persist(self, authed):
+        original = authed.get(f"{API}/auth/me").json().get("address", "")
+        try:
+            r = authed.put(f"{API}/branding", json={"address": "TEST_Rua QA 45, 1000-001 Lisboa"})
+            assert r.status_code == 200, r.text
+            assert r.json()["address"] == "TEST_Rua QA 45, 1000-001 Lisboa"
+            assert authed.get(f"{API}/auth/me").json()["address"] == "TEST_Rua QA 45, 1000-001 Lisboa"
+        finally:
+            authed.put(f"{API}/branding", json={"address": original})
+            assert authed.get(f"{API}/auth/me").json().get("address", "") == original
+
+    # i18n country switching (PT/BR)
+    def test_country_switch_pt_br_and_invalid(self, authed):
+        original = authed.get(f"{API}/auth/me").json().get("country", "PT")
+        try:
+            assert authed.put(f"{API}/branding", json={"country": "XX"}).status_code == 400
+            r = authed.put(f"{API}/branding", json={"country": "BR"})
+            assert r.status_code == 200, r.text
+            assert r.json()["country"] == "BR"
+            assert authed.get(f"{API}/auth/me").json()["country"] == "BR"
+        finally:
+            authed.put(f"{API}/branding", json={"country": original})
+            assert authed.get(f"{API}/auth/me").json()["country"] == original
+
+
+# ---------- PDF import (dedup by invoice_number) ----------
+class TestImportPdf:
+    IMPORT_EMAIL = "import.teste@example.com"
+    IMPORT_PASSWORD = "teste123456"
+
+    @pytest.fixture(scope="class")
+    def import_client(self):
+        s = requests.Session()
+        r = s.post(f"{API}/auth/login", json={"email": self.IMPORT_EMAIL, "password": self.IMPORT_PASSWORD})
+        if r.status_code != 200:
+            pytest.fail(f"Import-test account login failed {r.status_code}: {r.text[:200]}")
+        s.headers.update({"Authorization": f"Bearer {r.json()['token']}"})
+        return s
+
+    @staticmethod
+    def _make_pdf(invoice_number):
+        from reportlab.pdfgen import canvas
+        path = f"/tmp/TEST_erp_{invoice_number.replace('/', '_')}.pdf"
+        c = canvas.Canvas(path)
+        c.setFont("Helvetica", 12)
+        c.drawString(60, 780, "Relatorio de Faturas Pendentes")
+        c.drawString(60, 750, f"TEST Cliente Pytest Lda 256999888 {invoice_number} 01/11/2026 123,45")
+        c.save()
+        return path
+
+    def test_import_creates_then_dedups(self, import_client):
+        invoice_number = f"FT-2026/{random.randint(70000, 79999)}"
+        path = self._make_pdf(invoice_number)
+        created_id = None
+        try:
+            with open(path, "rb") as fh:
+                r = import_client.post(f"{API}/charges/import-pdf", files={"file": ("erp.pdf", fh, "application/pdf")})
+            assert r.status_code == 200, r.text
+            data = r.json()
+            assert data["created_count"] == 1, data
+            created = data["created"][0]
+            created_id = created["id"]
+            assert created["invoice_number"] == invoice_number
+            assert created["debtor_nif"] == "256999888"
+            assert float(created["amount"]) == 123.45
+            assert created["due_date"].startswith("2026-11-01")
+
+            # persisted?
+            got = import_client.get(f"{API}/charges/{created_id}")
+            assert got.status_code == 200
+            assert got.json()["invoice_number"] == invoice_number
+
+            # second import of the same PDF must be skipped (dedup)
+            with open(path, "rb") as fh:
+                r2 = import_client.post(f"{API}/charges/import-pdf", files={"file": ("erp.pdf", fh, "application/pdf")})
+            assert r2.status_code == 200, r2.text
+            d2 = r2.json()
+            assert d2["created_count"] == 0, d2
+            assert d2["skipped_count"] >= 1, d2
+        finally:
+            if created_id:
+                import_client.delete(f"{API}/charges/{created_id}")
+                assert import_client.get(f"{API}/charges/{created_id}").status_code == 404
+            if os.path.exists(path):
+                os.remove(path)
+
+    def test_import_forbidden_for_cobrador(self, api_client):
+        r = api_client.post(f"{API}/auth/login", json={"email": "cobrador@techflow.pt", "password": "Cobrador2026!"})
+        if r.status_code != 200:
+            pytest.skip("cobrador account unavailable")
+        token = r.json()["token"]
+        s = requests.Session()
+        s.headers.update({"Authorization": f"Bearer {token}"})
+        path = self._make_pdf("FT-2026/99999")
+        try:
+            with open(path, "rb") as fh:
+                resp = s.post(f"{API}/charges/import-pdf", files={"file": ("erp.pdf", fh, "application/pdf")})
+            assert resp.status_code == 403, resp.status_code
+        finally:
+            os.remove(path)
+
 
 
 # ---------- Security / bcrypt storage ----------

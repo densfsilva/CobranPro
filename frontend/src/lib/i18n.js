@@ -13,6 +13,10 @@ const DICT = {
     bankRef: "o IBAN",
     users: "Utilizadores",
     userLower: "utilizador",
+    team: "Equipa",
+    save: "Guardar",
+    password: "Palavra-passe",
+    registerVerb: "Registar",
   },
   BR: {
     invoice: "Fatura",
@@ -26,6 +30,10 @@ const DICT = {
     bankRef: "a chave PIX / dados bancários",
     users: "Usuários",
     userLower: "usuário",
+    team: "Equipe",
+    save: "Salvar",
+    password: "Senha",
+    registerVerb: "Registrar",
   },
 };
 

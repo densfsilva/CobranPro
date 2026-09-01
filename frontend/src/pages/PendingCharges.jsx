@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
 import ImportPdfDialog from "@/components/ImportPdfDialog";
+import WhatsAppQuickButton from "@/components/WhatsAppQuickButton";
 
 export default function PendingCharges() {
   const { isAdmin } = useAuth();
@@ -83,6 +84,7 @@ export default function PendingCharges() {
                 <th className="pb-3 font-medium">Vencimento</th>
                 <th className="pb-3 font-medium text-right">Valor</th>
                 <th className="pb-3 font-medium text-right">Estado</th>
+                <th className="pb-3 font-medium text-right" aria-label="Ações"></th>
               </tr>
             </thead>
             <tbody>
@@ -105,10 +107,13 @@ export default function PendingCharges() {
                       {c.bucket === "por_vencer" ? "Por Vencer" : `${c.days_overdue}d atraso`}
                     </span>
                   </td>
+                  <td className="py-3 pl-2 text-right">
+                    <WhatsAppQuickButton charge={c} />
+                  </td>
                 </tr>
               ))}
               {pendentes.length === 0 && (
-                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground" data-testid="pendentes-empty-state">Sem cobranças pendentes. Bom trabalho!</td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="pendentes-empty-state">Sem cobranças pendentes. Bom trabalho!</td></tr>
               )}
             </tbody>
           </table>

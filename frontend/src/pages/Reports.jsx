@@ -141,7 +141,7 @@ export default function Reports() {
               </div>}
           <div>
             <p style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{company.company_name}</p>
-            <p style={{ fontSize: 12, color: "#475569", margin: 0 }}>{company.nif ? `${company.country === "BR" ? "CNPJ" : "NIF"} ${company.nif} · ` : ""}{company.email}</p>
+            <p style={{ fontSize: 12, color: "#475569", margin: 0 }}>{company.nif ? `${company.country === "BR" ? "CNPJ" : "NIF"} ${company.nif} · ` : ""}{company.address ? `${company.address} · ` : ""}{company.email}</p>
           </div>
         </div>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: "16px 0 4px" }}>Relatório de Cobranças</h1>

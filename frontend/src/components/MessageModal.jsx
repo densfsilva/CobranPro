@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { MessageCircle, Mail, Copy, ExternalLink } from "lucide-react";
+import { MessageCircle, Mail, Copy, ExternalLink, Send } from "lucide-react";
+import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -37,10 +38,11 @@ export function buildMessage(templateKey, charge, company) {
     .replaceAll("o IBAN", t("bankRef"));
 }
 
-export default function MessageModal({ channel, charge, open, onOpenChange }) {
+export default function MessageModal({ channel, charge, open, onOpenChange, onLogged }) {
   const { company } = useAuth();
   const [template, setTemplate] = useState("lembrete");
   const [customText, setCustomText] = useState(null);
+  const [sending, setSending] = useState(false);
 
   const baseText = useMemo(
     () => (charge ? buildMessage(template, charge, company) : ""),
@@ -77,6 +79,13 @@ export default function MessageModal({ channel, charge, open, onOpenChange }) {
     }
   };
 
+  const logActivity = async (note) => {
+    try {
+      await api.post(`/charges/${charge.id}/interactions`, { type: channel, note });
+      onLogged?.();
+    } catch { /* o registo não deve bloquear o envio */ }
+  };
+
   const launch = () => {
     if (isWhatsApp) {
       const phone = (charge.debtor_phone || "").replace(/[^\d]/g, "");
@@ -85,7 +94,22 @@ export default function MessageModal({ channel, charge, open, onOpenChange }) {
       const subject = `Lembrete de pagamento — ${t("invoice")} ${charge.invoice_number}`;
       window.open(`mailto:${charge.debtor_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`, "_blank");
     }
-    toast.info(isWhatsApp ? "A abrir o WhatsApp..." : "A abrir o cliente de email...");
+    logActivity(`${isWhatsApp ? "WhatsApp" : "Email"} preparado (template: ${TEMPLATES[template].label}): "${text.slice(0, 140)}${text.length > 140 ? "…" : ""}"`);
+    toast.info(isWhatsApp ? "A abrir o WhatsApp — atividade registada..." : "A abrir o cliente de email — atividade registada...");
+  };
+
+  const sendReal = async () => {
+    setSending(true);
+    try {
+      await api.post(`/charges/${charge.id}/send-email`);
+      toast.success(`Email de cobrança enviado para ${charge.debtor_email} — registado na timeline`);
+      onLogged?.();
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(formatApiError(err, "Não foi possível enviar o email"));
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -124,10 +148,16 @@ export default function MessageModal({ channel, charge, open, onOpenChange }) {
           <p className="text-xs text-muted-foreground">
             Destinatário: {isWhatsApp ? charge.debtor_phone || "sem telemóvel" : charge.debtor_email || "sem email"} · Edite o texto livremente antes de enviar.
           </p>
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 flex-wrap">
             <Button variant="ghost" onClick={copy} data-testid="message-modal-copy-btn">
               <Copy size={15} className="mr-2" /> Copiar
             </Button>
+            {!isWhatsApp && (
+              <Button onClick={sendReal} disabled={sending || !charge.debtor_email} data-testid="message-modal-send-btn"
+                className="bg-emerald-600 text-white hover:opacity-90">
+                <Send size={15} className="mr-2" /> {sending ? "A enviar..." : "Enviar Email"}
+              </Button>
+            )}
             <Button onClick={launch} data-testid="message-modal-launch-btn" className="bg-brand text-white hover:opacity-90">
               <ExternalLink size={15} className="mr-2" />
               {isWhatsApp ? "Abrir no WhatsApp" : "Abrir Email"}

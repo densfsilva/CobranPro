@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 3: validated the definitive removeChild fix (PDF import, duplicate + brand-new PDF), dashboard follow-up duplicate-key fix, full PT<->BR i18n switch with revert to PT, and the new Dados da Instituição address field. Backend regression suite extended to 39 tests (all passing) with new coverage for branding address, country switch validation, PDF import create+dedup and cobrador 403. Frontend Playwright runs captured ZERO console errors / pageerrors on all tested flows.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/charges/import-pdf", "issue": "Dedup only guards new imports; the import.teste company still holds legacy duplicates (FT-2026/078 x3, FT-2026/077 x3) created before the dedup existed. No unique index on (company_id, invoice_number), so concurrent imports could still race in duplicates."},
+      {"endpoint": "seed_admin", "issue": "Newly seeded demo company doc has no 'address' key (only defaulted at read time). Harmless today, but add address: '' to the seed for consistency."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (aging chart)", "issues": ["Recharts console warning: 'The width(-1) and height(-1) of chart should be greater than 0' fired twice on first paint — ResponsiveContainer measures before layout; set minWidth/minHeight or a fixed height on the container to remove the warning"]},
+      {"screen": "i18n PT dictionary (ortografia)", "issues": ["PT uses pre-1990 spelling 'Factura/facturas' (UI shows 'FACTURA', '0 facturas criada(s)'). Post-Acordo Ortográfico PT-PT is 'fatura/faturas'. Since the request asked for a final spelling review, confirm with the user whether 'factura' is intentional; otherwise update DICT.PT invoice keys"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/backend/tests/conftest.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Optional: fix Recharts ResponsiveContainer width/height(-1) warning on Dashboard aging chart",
+    "Confirm PT spelling 'Factura' vs 'Fatura' with the user (final spelling review item)",
+    "Optional: add unique index on (company_id, invoice_number) and clean legacy duplicate charges in the import.teste company"
+  ],
+  "critical_code_review_comments": [
+    "ImportPdfDialog correctly defers onImported() to dialog close via importedRef and guards (result.created || []) — no unmount-time list mutation, root cause of removeChild is resolved",
+    "Dashboard follow-up keys use `${f.id}-${f.kind}-${f.date}`; both alerts for the same charge (contacto + promessa) render with no React duplicate-key warning",
+    "backend/server.py is 861 lines — consider splitting routers (auth, charges, branding, import) into modules"
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (39/39 pytest)", "frontend": "100% of tested flows (0 console errors)"},
+  "seed_data_creation": "Created and deleted transient charges: 'Cliente Novo Lda' FT-2026/5674 (from /tmp/erp_novo.pdf, deleted, GET returns 404) and TEST_ pytest import charge (auto-cleaned). Demo company branding restored: country=PT, address='' (test address removed). login_attempts collection cleared after brute-force test.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "/app/memory/test_credentials.md — admin denis.ferreira0909@gmail.com / Cobrancas2026!; import.teste@example.com / teste123456; cobrador@techflow.pt / Cobrador2026!",
+  "detailed_results": {
+    "removeChild_existing_pdf": "PASS — dialog showed '0 facturas criada(s) · 3 linha(s) ignorada(s)'; Escape-close then reopen stable; 0 console errors / pageerrors",
+    "import_new_pdf": "PASS — '1 factura criada(s) · Cliente Novo Lda · 256111222 · FT-2026/5674 · 999,99 € · venc. 01/10/2026'; after closing the dialog the Pendentes table contained the new row; 0 console errors",
+    "dashboard_followups": "PASS — '2 alerta(s)' banner with contacto + promessa chips for the same charge FT-2026/015, no 'same key' React warning; dashboard-company-name = 'TechFlow Solutions Lda'",
+    "i18n_BR": "PASS — nav 'Equipe', 'Gestão de Equipe' + 'usuários' (no 'utilizadores'), 'Salvar Alterações', 'CNPJ', 'Alterar Senha' (no 'Palavra-passe')",
+    "i18n_revert_PT": "PASS — nav 'Equipa', 'Gestão de Equipa' + 'utilizadores', 'Guardar Alterações', 'NIF', 'Alterar Palavra-passe'; GET /api/auth/me confirms country=PT persisted",
+    "address_field": "PASS — settings-address-input accepts text, PUT /api/branding persists it, value intact after full reload; pytest also verifies persistence + rollback",
+    "auth_playbook": "PASS — bcrypt hashes start with $2b$; brute-force lockout returns 429 after 5 failed logins (15 min window, clears on success); CORS returns explicit origin with allow-credentials (no wildcard); seed_admin idempotent and rehashes admin password when changed. NOTE: this app uses Bearer/JWT in localStorage, not httpOnly cookies, so the cookie playbook check is not applicable"
+  },
+  "context_for_next_testing_agent": "Backend suite at /app/backend/backend/tests/backend_test.py (39 tests, run with `cd /app/backend && python -m pytest tests/ -q`). Login testid are auth-email-input/auth-password-input/auth-submit-btn (NOT login-*). Brute-force lockout is real: 5 wrong passwords lock the account for 15 min — clear db.login_attempts if you lock yourself out. Do not import PDFs into the demo company; use import.teste@example.com. Always revert demo company country to PT after i18n tests.",
+  "rca_of_the_issue": "removeChild was caused by refreshing/mutating the charge list while the Radix dialog was unmounting; the fix defers onImported() to the dialog close callback (importedRef) and defensively renders (result.created || []). Duplicate React keys came from two follow-up alerts sharing a charge id; now keyed by id+kind+date. Both fixes verified with console/pageerror listeners capturing zero errors."
+}

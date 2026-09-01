@@ -6,9 +6,11 @@ import { api } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { useAuth } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
 import ImportPdfDialog from "@/components/ImportPdfDialog";
+import WhatsAppQuickButton from "@/components/WhatsAppQuickButton";
 
 const KPI_CONFIG = [
   { key: "total_debt", label: "Total em Dívida", icon: Banknote, testid: "dashboard-kpi-total-debt" },
@@ -18,6 +20,7 @@ const KPI_CONFIG = [
 ];
 
 export default function Dashboard() {
+  const { company } = useAuth();
   const [stats, setStats] = useState(null);
   const [charges, setCharges] = useState([]);
   const [search, setSearch] = useState("");
@@ -51,6 +54,7 @@ export default function Dashboard() {
     <div className="space-y-6" data-testid="dashboard-page">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand" data-testid="dashboard-company-name">{company.company_name}</p>
           <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">Dashboard Financeiro</h1>
           <p className="text-sm text-muted-foreground mt-1">Visão geral das suas cobranças e antiguidade da dívida.</p>
         </div>
@@ -164,6 +168,7 @@ export default function Dashboard() {
                   <th className="pb-3 font-medium">Vencimento</th>
                   <th className="pb-3 font-medium text-right">Valor</th>
                   <th className="pb-3 font-medium text-right">Estado</th>
+                  <th className="pb-3 font-medium text-right" aria-label="Ações"></th>
                 </tr>
               </thead>
               <tbody>
@@ -186,10 +191,13 @@ export default function Dashboard() {
                         {c.status === "paga" ? "Paga" : c.bucket === "por_vencer" ? "Por Vencer" : c.bucket === "negociacao" ? "Em Negociação" : `${c.days_overdue}d atraso`}
                       </span>
                     </td>
+                    <td className="py-3 pl-2 text-right">
+                      <WhatsAppQuickButton charge={c} />
+                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={5} className="py-10 text-center text-muted-foreground" data-testid="debtor-empty-state">Sem cobranças para os filtros selecionados.</td></tr>
+                  <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="debtor-empty-state">Sem cobranças para os filtros selecionados.</td></tr>
                 )}
               </tbody>
             </table>

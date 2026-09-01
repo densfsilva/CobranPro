@@ -4,6 +4,7 @@ import { Palette, Upload, Building2, Save, Globe, Check, Cloud } from "lucide-re
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { idLabel, idPlaceholder, bankLabel } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -20,6 +21,7 @@ export default function Settings() {
     company_name: company.company_name,
     nif: company.nif || "",
     iban: company.iban || "",
+    address: company.address || "",
     country: company.country || "PT",
     google_client_id: company.google_client_id || "",
     primary_color: company.primary_color,
@@ -126,6 +128,12 @@ export default function Settings() {
                 onChange={(e) => setForm({ ...form, nif: e.target.value })} placeholder={idPlaceholder(form.country)} className="bg-background" />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="address">Endereço</Label>
+              <Input id="address" data-testid="settings-address-input" value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                placeholder={form.country === "BR" ? "Rua, número, cidade - UF" : "Rua, nº, código postal, cidade"} className="bg-background" />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="iban" data-testid="branding-bank-label">{bankLabel(form.country)}</Label>
               <Input id="iban" data-testid="branding-iban-input" value={form.iban}
                 onChange={(e) => setForm({ ...form, iban: e.target.value })}
@@ -182,7 +190,7 @@ export default function Settings() {
         <div className="flex justify-end">
           <button type="submit" disabled={busy} data-testid="branding-settings-save-btn"
             className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-brand text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] transition-all duration-200 disabled:opacity-50">
-            <Save size={16} /> {busy ? "A guardar..." : "Guardar Alterações"}
+            <Save size={16} /> {busy ? "A guardar..." : `${t("save")} Alterações`}
           </button>
         </div>
       </form>

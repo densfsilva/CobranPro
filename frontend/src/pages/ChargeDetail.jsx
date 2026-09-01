@@ -18,6 +18,7 @@ export default function ChargeDetail() {
   const { isAdmin } = useAuth();
   const [charge, setCharge] = useState(null);
   const [modal, setModal] = useState(null); // 'whatsapp' | 'email' | null
+  const [timelineTick, setTimelineTick] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -164,12 +165,12 @@ export default function ChargeDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <ChargeTimeline charge={charge} onChargeUpdate={setCharge} />
+          <ChargeTimeline charge={charge} onChargeUpdate={setCharge} reloadSignal={timelineTick} />
         </div>
         <ChargeDocuments charge={charge} />
       </div>
 
-      <MessageModal channel={modal} charge={charge} open={!!modal} onOpenChange={() => setModal(null)} />
+      <MessageModal channel={modal} charge={charge} open={!!modal} onOpenChange={() => setModal(null)} onLogged={() => setTimelineTick((n) => n + 1)} />
     </div>
   );
 }

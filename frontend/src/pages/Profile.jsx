@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { UserCircle, Upload, Save, KeyRound } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -51,7 +52,7 @@ export default function Profile() {
     try {
       await api.put("/profile/password", pw);
       setPw({ current_password: "", new_password: "" });
-      toast.success("Palavra-passe alterada com sucesso");
+      toast.success(`${t("password")} alterada com sucesso`);
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
@@ -111,21 +112,21 @@ export default function Profile() {
         <div className="flex justify-end">
           <button type="submit" disabled={busy} data-testid="profile-save-btn"
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand text-white text-sm font-semibold hover:opacity-90 transition-opacity duration-200 disabled:opacity-50">
-            <Save size={15} /> {busy ? "A guardar..." : "Guardar Perfil"}
+            <Save size={15} /> {busy ? "A guardar..." : `${t("save")} Perfil`}
           </button>
         </div>
       </form>
 
       <form onSubmit={changePw} className="bg-card border border-border rounded-xl p-6 space-y-4" data-testid="password-form">
-        <h2 className="font-heading text-lg font-semibold flex items-center gap-2"><KeyRound size={18} className="text-brand" /> Alterar Palavra-passe</h2>
+        <h2 className="font-heading text-lg font-semibold flex items-center gap-2"><KeyRound size={18} className="text-brand" /> Alterar {t("password")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="current_password">Palavra-passe Atual</Label>
+            <Label htmlFor="current_password">{t("password")} Atual</Label>
             <Input id="current_password" type="password" data-testid="profile-current-password-input" required value={pw.current_password}
               onChange={(e) => setPw({ ...pw, current_password: e.target.value })} className="bg-background" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="new_password">Nova Palavra-passe</Label>
+            <Label htmlFor="new_password">Nova {t("password")}</Label>
             <Input id="new_password" type="password" data-testid="profile-new-password-input" required minLength={6} value={pw.new_password}
               onChange={(e) => setPw({ ...pw, new_password: e.target.value })} placeholder="Mín. 6 caracteres" className="bg-background" />
           </div>
@@ -133,7 +134,7 @@ export default function Profile() {
         <div className="flex justify-end">
           <button type="submit" disabled={busyPw} data-testid="profile-password-save-btn"
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border text-sm font-semibold hover:bg-secondary transition-colors duration-200 disabled:opacity-50">
-            {busyPw ? "A alterar..." : "Alterar Palavra-passe"}
+            {busyPw ? "A alterar..." : `Alterar ${t("password")}`}
           </button>
         </div>
       </form>

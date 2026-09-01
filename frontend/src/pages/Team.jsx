@@ -72,10 +72,11 @@ export default function Team() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3">
-            <Users size={28} className="text-brand" /> Gestão de Equipa
+            <Users size={28} className="text-brand" /> Gestão de {t("team")}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            <span className="font-mono-num font-semibold text-foreground" data-testid="team-count">{members.length}</span> {t("userLower") === "utilizador" ? "utilizadores" : "usuários"} na sua empresa
+            <span className="font-mono-num font-semibold text-foreground" data-testid="team-count">{members.length}</span>
+            <span>{` ${t("users").toLowerCase()} na sua empresa`}</span>
           </p>
         </div>
         <button onClick={() => setOpen(true)} data-testid="invite-member-btn"
@@ -139,7 +140,7 @@ export default function Team() {
               <Input id="inv-email" type="email" data-testid="invite-email-input" required value={form.email} onChange={set("email")} placeholder="colega@empresa.pt" className="bg-background" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="inv-password">Palavra-passe Inicial</Label>
+              <Label htmlFor="inv-password">{t("password")} Inicial</Label>
               <Input id="inv-password" type="text" data-testid="invite-password-input" required minLength={6} value={form.password} onChange={set("password")} placeholder="Mín. 6 caracteres — partilhe com o membro" className="bg-background" />
             </div>
             <div className="grid grid-cols-2 gap-3">

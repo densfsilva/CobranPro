@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, Clock, Handshake, History, FileBarChart, Users, Settings, LogOut, Wallet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { t } from "@/lib/i18n";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard", admin: true },
@@ -8,7 +9,7 @@ const NAV = [
   { to: "/negociacao", label: "Em Negociação", icon: Handshake, testid: "nav-negociacao" },
   { to: "/recebidos", label: "Recebidos", icon: History, testid: "nav-recebidos" },
   { to: "/relatorios", label: "Relatórios", icon: FileBarChart, testid: "nav-relatorios", admin: true },
-  { to: "/equipa", label: "Equipa", icon: Users, testid: "nav-equipa", admin: true },
+  { to: "/equipa", labelKey: "team", icon: Users, testid: "nav-equipa", admin: true },
   { to: "/configuracoes", label: "Configurações", icon: Settings, testid: "nav-configuracoes", admin: true },
 ];
 
@@ -41,7 +42,8 @@ export default function AppLayout({ children }) {
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {NAV.filter((n) => !n.admin || isAdmin).map(({ to, label, icon: Icon, testid }) => {
+          {NAV.filter((n) => !n.admin || isAdmin).map(({ to, label, labelKey, icon: Icon, testid }) => {
+            const resolvedLabel = labelKey ? t(labelKey) : label;
             const active = location.pathname === to;
             return (
               <Link
@@ -53,7 +55,7 @@ export default function AppLayout({ children }) {
                 }`}
               >
                 <Icon size={18} className="shrink-0" />
-                <span className="hidden lg:inline">{label}</span>
+                <span className="hidden lg:inline">{resolvedLabel}</span>
               </Link>
             );
           })}

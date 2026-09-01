@@ -22,6 +22,18 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 9: Módulo de Comunicação — Disparo de Cobranças
+- Email real via Resend (integração gerida Emergent, EMERGENT_EMAIL_KEY + EMAIL_FROM_NAME="CobranPro" em backend/.env; httpx adicionado): POST /api/charges/{id}/send-email com guard de segurança (_assert_safe_email — sem formulários, links apenas https/mailto, destinatário sempre do registo server-side), rate limit 1 email/hora por cobrança, tenant-scoped por empresa
+- Template de email profissional server-side: header com cor de marca + iniciais da empresa, nome do cliente, valor em dívida, dias de atraso, dados de pagamento (IBAN/PIX) e botão "Enviar Comprovativo" (mailto para o email da empresa); texto adapta-se ao país (Factura/Fatura, €/R$)
+- WhatsApp direto (wa.me) na lista de devedores (Pendentes + Dashboard): mensagem "Olá [Nome], vimos que a fatura [Nº] com vencimento em [Data] ainda está pendente. Podemos ajudar?" via WhatsAppQuickButton
+- Registo automático na Timeline: envio real de email (backend, source "auto") e preparação WhatsApp/Email no modal (frontend) criam atividades; ficha atualiza a timeline em direto (reloadSignal)
+- Modal de mensagem (ficha) ganha botão "Enviar Email" (envio real) junto de "Abrir Email" (mailto) e Copiar
+
+### 2026-09-01 — Iteração 8: i18n BR completo, Dados da Instituição, acabamento
+- i18n alargado: chaves team (Equipa/Equipe), users (Utilizadores/Usuários), save (Guardar/Salvar), password (Palavra-passe/Senha), registerVerb (Registar/Registrar) — aplicadas ao menu lateral, Gestão de Equipa, Configurações, Perfil e Timeline; grep confirma zero termos hardcoded fora do dicionário
+- Dados da Instituição: campo Endereço na empresa (PUT /api/branding + Configurações > Identidade); Nome da Empresa passa a aparecer no topo do Dashboard (overline data-testid=dashboard-company-name) e Endereço entra no cabeçalho do relatório PDF/impressão
+- removeChild: correção da iteração 7 mantida (translate=no + spans + refresh ao fechar dialog + keys compostas) — revalidada pelo testing agent
+
 ### 2026-09-01 — Iteração 7: Fix do erro 'removeChild' no Importar PDF
 - Causa raiz: auto-tradução do browser muta nós de texto → React falha ao removê-los. Fix: `<html lang="pt" class="notranslate" translate="no">` + meta google notranslate em public/index.html; nós de texto mistos (texto + expressões) encapsulados em <span> nas páginas Pendentes/Negociação/Recebidos/Relatórios e no resultado do import
 - ImportPdfDialog: atualização da lista da página pai passou a acontecer ao FECHAR o dialog (importedRef), eliminando a condição de corrida entre o render do resultado e o refresh da lista; render defensivo com (result.created || [])

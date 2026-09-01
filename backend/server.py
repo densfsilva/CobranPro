@@ -12,8 +12,13 @@ from datetime import datetime, timezone, timedelta, date
 from typing import Optional, List
 
 import io
+import ipaddress
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import quote, urlparse
 
 import bcrypt
+import httpx
 import jwt
 import pdfplumber
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, UploadFile, File
@@ -79,6 +84,7 @@ def serialize_company(doc: dict) -> dict:
         "nif": doc.get("nif", ""),
         "iban": doc.get("iban", ""),
         "country": doc.get("country", "PT"),
+        "address": doc.get("address", ""),
         "google_client_id": doc.get("google_client_id", ""),
         "primary_color": doc.get("primary_color", "#2563EB"),
         "logo_base64": doc.get("logo_base64", ""),
@@ -163,6 +169,7 @@ class BrandingInput(BaseModel):
     nif: Optional[str] = None
     iban: Optional[str] = None
     country: Optional[str] = None
+    address: Optional[str] = None
     google_client_id: Optional[str] = None
     primary_color: Optional[str] = None
     logo_base64: Optional[str] = None
@@ -529,6 +536,209 @@ async def delete_document(doc_id: str, ctx: dict = Depends(require_admin)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Documento não encontrado")
     return {"ok": True}
+
+
+# ---------- Email de Cobrança (Resend via Emergent) ----------
+
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
+EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
+
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan()
+    scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+
+async def send_email(*, to: str, subject: str, html: str, reply_to: str = None):
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    if reply_to:
+        payload["contact_email"] = reply_to
+    try:
+        async with httpx.AsyncClient(timeout=30) as http:
+            resp = await http.post(
+                f"{EMAIL_BASE_URL}/api/v1/email/send",
+                headers={"X-Email-Key": EMAIL_KEY},
+                json=payload,
+            )
+        resp.raise_for_status()
+        return resp.json().get("id")
+    except httpx.HTTPStatusError as e:
+        logger.error("Email send failed: %s %s", e.response.status_code, e.response.text)
+        raise HTTPException(status_code=502, detail="Falha ao enviar o email")
+    except Exception as e:
+        logger.error("Email send error: %s", str(e))
+        raise HTTPException(status_code=500, detail="Falha ao enviar o email")
+
+
+def _fmt_money_email(v: float, country: str) -> str:
+    raw = f"{v:,.2f}"
+    if country == "BR":
+        return "R$ " + raw.replace(",", "X").replace(".", ",").replace("X", ".")
+    return raw.replace(",", " ").replace(".", ",") + " €"
+
+
+def build_collection_email_html(company: dict, charge: dict) -> str:
+    country = company.get("country", "PT")
+    inv = "Factura" if country == "PT" else "Fatura"
+    brand = company.get("primary_color", "#2563EB")
+    initials = escape("".join(w[0] for w in company["company_name"].split()[:2]).upper())
+    company_name = escape(company["company_name"])
+    debtor = escape(charge["debtor_name"])
+    invoice = escape(charge["invoice_number"])
+    amount = _fmt_money_email(charge["amount"], country)
+    days = max((date.today() - date.fromisoformat(charge["due_date"])).days, 0)
+    due = date.fromisoformat(charge["due_date"]).strftime("%d/%m/%Y")
+    bank = escape(company.get("iban") or "")
+    status_line = (
+        f"encontra-se em atraso há <strong>{days} dias</strong>" if days > 0
+        else f"tem vencimento a <strong>{due}</strong>"
+    )
+    mail_subject = quote(f"Comprovativo de pagamento — {inv} {charge['invoice_number']}")
+    proof_url = f"mailto:{company.get('email', '')}?subject={mail_subject}"
+    bank_row = (
+        f'<tr><td style="padding:6px 0;color:#64748b;font-size:13px">Dados para pagamento</td>'
+        f'<td style="padding:6px 0;text-align:right;font-size:13px;color:#0f172a">{bank}</td></tr>'
+        if bank else ""
+    )
+    return f'''<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0">
+<tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial,sans-serif">
+  <tr><td style="background:{escape(brand)};padding:24px 32px">
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+      <td style="background:rgba(255,255,255,0.18);border-radius:10px;width:44px;height:44px;text-align:center;color:#ffffff;font-size:18px;font-weight:bold;vertical-align:middle">{initials}</td>
+      <td style="padding-left:12px;color:#ffffff;font-size:17px;font-weight:bold">{company_name}</td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:32px">
+    <p style="margin:0 0 16px;font-size:15px;color:#0f172a">Olá <strong>{debtor}</strong>,</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#334155;line-height:1.6">
+      A {inv} <strong>{invoice}</strong> no valor de <strong>{amount}</strong> {status_line}.
+      Agradecemos a regularização com a maior brevidade possível.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:24px">
+      <tr><td style="padding:6px 0;color:#64748b;font-size:13px">{inv}</td>
+          <td style="padding:6px 0;text-align:right;font-size:13px;color:#0f172a;font-weight:bold">{invoice}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;font-size:13px">Valor em dívida</td>
+          <td style="padding:6px 0;text-align:right;font-size:15px;color:#dc2626;font-weight:bold">{amount}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;font-size:13px">Dias de atraso</td>
+          <td style="padding:6px 0;text-align:right;font-size:13px;color:#0f172a">{days}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;font-size:13px">Vencimento</td>
+          <td style="padding:6px 0;text-align:right;font-size:13px;color:#0f172a">{due}</td></tr>
+      {bank_row}
+    </table>
+    <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr>
+      <td style="background:{escape(brand)};border-radius:8px;text-align:center">
+        <a href="{proof_url}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none">Enviar Comprovativo</a>
+      </td>
+    </tr></table>
+    <p style="margin:24px 0 0;font-size:12px;color:#94a3b8;line-height:1.6">
+      Se já efetuou o pagamento, utilize o botão acima para nos enviar o comprovativo.
+      Este email foi enviado por {company_name} através da plataforma {escape(EMAIL_FROM_NAME)}.
+      Nunca pedimos palavras-passe ou dados de cartão por email.</p>
+  </td></tr>
+</table>
+</td></tr></table>'''
+
+
+@api_router.post("/charges/{charge_id}/send-email")
+async def send_charge_email(charge_id: str, ctx: dict = Depends(get_current_context)):
+    company = ctx["company"]
+    charge = await get_owned_charge(charge_id, company)
+    if not charge.get("debtor_email"):
+        raise HTTPException(status_code=400, detail="Esta cobrança não tem email do devedor")
+
+    one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    recent = await db.interactions.find_one({
+        "charge_id": charge_id, "type": "email", "source": "auto",
+        "created_at": {"$gte": one_hour_ago},
+    })
+    if recent:
+        raise HTTPException(status_code=429, detail="Já foi enviado um email para esta cobrança na última hora")
+
+    country = company.get("country", "PT")
+    inv = "Factura" if country == "PT" else "Fatura"
+    subject = f"Lembrete de pagamento — {inv} {charge['invoice_number']}"
+    html = build_collection_email_html(company, charge)
+    email_id = await send_email(to=charge["debtor_email"], subject=subject, html=html, reply_to=company.get("email"))
+
+    await db.interactions.insert_one({
+        "id": str(uuid.uuid4()),
+        "charge_id": charge_id,
+        "company_id": company["id"],
+        "type": "email",
+        "note": f"Email de cobrança enviado para {charge['debtor_email']} ({inv} {charge['invoice_number']})",
+        "source": "auto",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"status": "success", "email_id": email_id}
 
 
 # ---------- Importação PDF (Relatório ERP) ----------

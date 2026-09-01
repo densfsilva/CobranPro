@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PhoneCall, Mail, MessageCircle, StickyNote, CalendarClock, Send, History } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
+import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 
 const TYPES = {
@@ -13,7 +14,7 @@ const TYPES = {
 const fmtDT = (iso) =>
   new Date(iso).toLocaleString("pt-PT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-export default function ChargeTimeline({ charge, onChargeUpdate }) {
+export default function ChargeTimeline({ charge, onChargeUpdate, reloadSignal }) {
   const [items, setItems] = useState([]);
   const [type, setType] = useState("chamada");
   const [note, setNote] = useState("");
@@ -21,7 +22,7 @@ export default function ChargeTimeline({ charge, onChargeUpdate }) {
   const [busy, setBusy] = useState(false);
 
   const load = () => api.get(`/charges/${charge.id}/interactions`).then(({ data }) => setItems(data));
-  useEffect(() => { load(); }, [charge.id]);
+  useEffect(() => { load(); }, [charge.id, reloadSignal]);
 
   const add = async (e) => {
     e.preventDefault();
@@ -92,7 +93,7 @@ export default function ChargeTimeline({ charge, onChargeUpdate }) {
             placeholder="Ex: Liguei hoje, cliente pediu novo prazo..." data-testid="timeline-note-input" className="bg-background flex-1" />
           <button type="submit" disabled={busy || !note.trim()} data-testid="timeline-add-btn"
             className="px-3 py-2 rounded-lg bg-brand text-white text-xs font-semibold hover:opacity-90 transition-opacity duration-200 disabled:opacity-50 flex items-center gap-1.5">
-            <Send size={13} /> Registar
+            <Send size={13} /> {t("registerVerb")}
           </button>
         </div>
       </form>
