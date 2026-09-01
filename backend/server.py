@@ -47,14 +47,28 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_token(company_id: str, email: str) -> str:
+def create_token(user_id: str, email: str, company_id: str, role: str) -> str:
     payload = {
-        "sub": company_id,
+        "sub": user_id,
         "email": email,
+        "cid": company_id,
         "type": "access",
         "exp": datetime.now(timezone.utc) + timedelta(days=7),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def serialize_user(doc: dict) -> dict:
+    return {
+        "id": doc["id"],
+        "email": doc["email"],
+        "role": doc.get("role", "cobrador"),
+        "full_name": doc.get("full_name", ""),
+        "cargo": doc.get("cargo", ""),
+        "departamento": doc.get("departamento", ""),
+        "photo_base64": doc.get("photo_base64", ""),
+        "created_at": doc.get("created_at"),
+    }
 
 
 def serialize_company(doc: dict) -> dict:
@@ -98,25 +112,43 @@ def compute_aging(charge: dict) -> dict:
     return charge
 
 
-async def get_current_company(creds: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+async def get_current_context(creds: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     if not creds:
         raise HTTPException(status_code=401, detail="Não autenticado")
     try:
         payload = jwt.decode(creds.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        company = await db.companies.find_one({"id": payload["sub"]}, {"_id": 0})
+        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Utilizador não encontrado")
+        company = await db.companies.find_one({"id": user["company_id"]}, {"_id": 0})
         if not company:
             raise HTTPException(status_code=401, detail="Empresa não encontrada")
-        return company
+        return {"user": user, "company": company}
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Sessão expirada")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token inválido")
 
 
+async def get_current_company(ctx: dict = Depends(get_current_context)) -> dict:
+    return ctx["company"]
+
+
+async def get_current_user(ctx: dict = Depends(get_current_context)) -> dict:
+    return ctx["user"]
+
+
+async def require_admin(ctx: dict = Depends(get_current_context)) -> dict:
+    if ctx["user"].get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Apenas administradores podem realizar esta ação")
+    return ctx
+
+
 # ---------- Schemas ----------
 
 class RegisterInput(BaseModel):
     company_name: str = Field(min_length=2, max_length=120)
+    full_name: Optional[str] = None
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
 
@@ -156,24 +188,37 @@ class ChargeInput(BaseModel):
 @api_router.post("/auth/register")
 async def register(data: RegisterInput):
     email = data.email.lower().strip()
-    existing = await db.companies.find_one({"email": email})
+    existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="Este email já está registado")
     company = {
         "id": str(uuid.uuid4()),
         "email": email,
-        "password_hash": hash_password(data.password),
         "company_name": data.company_name.strip(),
         "nif": "",
         "iban": "",
         "country": "PT",
+        "google_client_id": "",
         "primary_color": "#2563EB",
         "logo_base64": "",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.companies.insert_one(company)
+    user = {
+        "id": str(uuid.uuid4()),
+        "company_id": company["id"],
+        "email": email,
+        "password_hash": hash_password(data.password),
+        "role": "admin",
+        "full_name": (data.full_name or data.company_name).strip(),
+        "cargo": "Administrador",
+        "departamento": "",
+        "photo_base64": "",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(user)
     await seed_sample_charges(company["id"])
-    return {"token": create_token(company["id"], email), "company": serialize_company(company)}
+    return {"token": create_token(user["id"], email, company["id"], "admin"), "company": serialize_company(company), "user": serialize_user(user)}
 
 
 @api_router.post("/auth/login")
@@ -189,8 +234,8 @@ async def login(data: LoginInput, request: Request):
         await db.login_attempts.delete_one({"identifier": identifier})
         attempts = None
 
-    company = await db.companies.find_one({"email": email}, {"_id": 0})
-    if not company or not verify_password(data.password, company["password_hash"]):
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not verify_password(data.password, user["password_hash"]):
         new_count = (attempts.get("count", 0) if attempts else 0) + 1
         update = {"$inc": {"count": 1}}
         if new_count >= 5:
@@ -199,18 +244,123 @@ async def login(data: LoginInput, request: Request):
         raise HTTPException(status_code=401, detail="Email ou palavra-passe incorretos")
 
     await db.login_attempts.delete_one({"identifier": identifier})
-    return {"token": create_token(company["id"], email), "company": serialize_company(company)}
+    company = await db.companies.find_one({"id": user["company_id"]}, {"_id": 0})
+    if not company:
+        raise HTTPException(status_code=401, detail="Empresa não encontrada")
+    return {"token": create_token(user["id"], email, company["id"], user["role"]), "company": serialize_company(company), "user": serialize_user(user)}
 
 
 @api_router.get("/auth/me")
-async def me(company: dict = Depends(get_current_company)):
-    return serialize_company(company)
+async def me(ctx: dict = Depends(get_current_context)):
+    return {**serialize_company(ctx["company"]), "user": serialize_user(ctx["user"])}
+
+
+# ---------- Equipa & Perfil ----------
+
+class InviteInput(BaseModel):
+    email: EmailStr
+    full_name: str = Field(min_length=2, max_length=120)
+    password: str = Field(min_length=6, max_length=128)
+    role: str = "cobrador"
+    cargo: Optional[str] = ""
+    departamento: Optional[str] = ""
+
+
+class RoleInput(BaseModel):
+    role: str
+
+
+class ProfileInput(BaseModel):
+    full_name: Optional[str] = None
+    cargo: Optional[str] = None
+    departamento: Optional[str] = None
+    photo_base64: Optional[str] = None
+
+
+class PasswordInput(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6, max_length=128)
+
+
+@api_router.get("/team")
+async def list_team(ctx: dict = Depends(require_admin)):
+    users = await db.users.find({"company_id": ctx["company"]["id"]}, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(200)
+    return [serialize_user(u) for u in users]
+
+
+@api_router.post("/team/invite")
+async def invite_member(data: InviteInput, ctx: dict = Depends(require_admin)):
+    if data.role not in ("admin", "cobrador"):
+        raise HTTPException(status_code=400, detail="Nível de acesso inválido")
+    email = data.email.lower().strip()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="Este email já está registado")
+    user = {
+        "id": str(uuid.uuid4()),
+        "company_id": ctx["company"]["id"],
+        "email": email,
+        "password_hash": hash_password(data.password),
+        "role": data.role,
+        "full_name": data.full_name.strip(),
+        "cargo": data.cargo or "",
+        "departamento": data.departamento or "",
+        "photo_base64": "",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(user)
+    return serialize_user(user)
+
+
+@api_router.put("/team/{user_id}/role")
+async def change_role(user_id: str, data: RoleInput, ctx: dict = Depends(require_admin)):
+    if data.role not in ("admin", "cobrador"):
+        raise HTTPException(status_code=400, detail="Nível de acesso inválido")
+    target = await db.users.find_one({"id": user_id, "company_id": ctx["company"]["id"]}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado")
+    if target["id"] == ctx["user"]["id"] and data.role != "admin":
+        raise HTTPException(status_code=400, detail="Não pode alterar o seu próprio nível de acesso")
+    await db.users.update_one({"id": user_id}, {"$set": {"role": data.role}})
+    target["role"] = data.role
+    return serialize_user(target)
+
+
+@api_router.delete("/team/{user_id}")
+async def remove_member(user_id: str, ctx: dict = Depends(require_admin)):
+    if user_id == ctx["user"]["id"]:
+        raise HTTPException(status_code=400, detail="Não pode remover a sua própria conta")
+    result = await db.users.delete_one({"id": user_id, "company_id": ctx["company"]["id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado")
+    return {"ok": True}
+
+
+@api_router.put("/profile")
+async def update_profile(data: ProfileInput, user: dict = Depends(get_current_user)):
+    updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    if "photo_base64" in updates and len(updates["photo_base64"]) > 2_000_000:
+        raise HTTPException(status_code=400, detail="Fotografia demasiado grande (máx ~1.5MB)")
+    if "full_name" in updates:
+        updates["full_name"] = updates["full_name"].strip()
+    if updates:
+        await db.users.update_one({"id": user["id"]}, {"$set": updates})
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0})
+    return serialize_user(updated)
+
+
+@api_router.put("/profile/password")
+async def change_password(data: PasswordInput, user: dict = Depends(get_current_user)):
+    if not verify_password(data.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Palavra-passe atual incorreta")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_password(data.new_password)}})
+    return {"ok": True}
 
 
 # ---------- Branding ----------
 
 @api_router.put("/branding")
-async def update_branding(data: BrandingInput, company: dict = Depends(get_current_company)):
+async def update_branding(data: BrandingInput, ctx: dict = Depends(require_admin)):
+    company = ctx["company"]
     updates = {k: v for k, v in data.model_dump().items() if v is not None}
     if "country" in updates and updates["country"] not in ("PT", "BR"):
         raise HTTPException(status_code=400, detail="País inválido (PT ou BR)")
@@ -236,7 +386,8 @@ async def list_charges(company: dict = Depends(get_current_company)):
 
 
 @api_router.post("/charges")
-async def create_charge(data: ChargeInput, company: dict = Depends(get_current_company)):
+async def create_charge(data: ChargeInput, ctx: dict = Depends(require_admin)):
+    company = ctx["company"]
     for label, value in (("Data de vencimento", data.due_date), ("Próximo contacto", data.next_contact_date), ("Promessa de pagamento", data.promise_date)):
         if value:
             try:
@@ -271,7 +422,8 @@ async def get_charge(charge_id: str, company: dict = Depends(get_current_company
 
 
 @api_router.put("/charges/{charge_id}")
-async def update_charge(charge_id: str, data: ChargeInput, company: dict = Depends(get_current_company)):
+async def update_charge(charge_id: str, data: ChargeInput, ctx: dict = Depends(require_admin)):
+    company = ctx["company"]
     await get_owned_charge(charge_id, company)
     if data.status not in ("pendente", "paga", "negociacao"):
         raise HTTPException(status_code=400, detail="Estado inválido")
@@ -281,8 +433,8 @@ async def update_charge(charge_id: str, data: ChargeInput, company: dict = Depen
 
 
 @api_router.delete("/charges/{charge_id}")
-async def delete_charge(charge_id: str, company: dict = Depends(get_current_company)):
-    await get_owned_charge(charge_id, company)
+async def delete_charge(charge_id: str, ctx: dict = Depends(require_admin)):
+    await get_owned_charge(charge_id, ctx["company"])
     await db.charges.delete_one({"id": charge_id})
     await db.interactions.delete_many({"charge_id": charge_id})
     await db.documents.delete_many({"charge_id": charge_id})
@@ -372,8 +524,8 @@ async def download_document(doc_id: str, company: dict = Depends(get_current_com
 
 
 @api_router.delete("/documents/{doc_id}")
-async def delete_document(doc_id: str, company: dict = Depends(get_current_company)):
-    result = await db.documents.delete_one({"id": doc_id, "company_id": company["id"]})
+async def delete_document(doc_id: str, ctx: dict = Depends(require_admin)):
+    result = await db.documents.delete_one({"id": doc_id, "company_id": ctx["company"]["id"]})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Documento não encontrado")
     return {"ok": True}
@@ -401,7 +553,8 @@ def parse_amount(raw: str) -> float:
 
 
 @api_router.post("/charges/import-pdf")
-async def import_charges_pdf(file: UploadFile = File(...), company: dict = Depends(get_current_company)):
+async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(require_admin)):
+    company = ctx["company"]
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="O ficheiro tem de ser um PDF")
     content = await file.read()
@@ -487,7 +640,8 @@ async def import_charges_pdf(file: UploadFile = File(...), company: dict = Depen
 # ---------- Dashboard ----------
 
 @api_router.get("/dashboard")
-async def dashboard(company: dict = Depends(get_current_company)):
+async def dashboard(ctx: dict = Depends(require_admin)):
+    company = ctx["company"]
     charges = await db.charges.find({"company_id": company["id"]}, {"_id": 0}).to_list(1000)
     charges = [compute_aging(c) for c in charges]
 
@@ -564,24 +718,43 @@ async def seed_sample_charges(company_id: str):
 @app.on_event("startup")
 async def startup():
     await db.companies.create_index("email", unique=True)
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("company_id")
     await db.charges.create_index("company_id")
     await db.login_attempts.create_index("identifier")
     await db.interactions.create_index("charge_id")
     await db.documents.create_index("charge_id")
 
+    # Migração: empresas antigas com credenciais na própria empresa → coleção users
+    async for comp in db.companies.find({"password_hash": {"$exists": True}}):
+        if not await db.users.find_one({"email": comp["email"]}):
+            await db.users.insert_one({
+                "id": str(uuid.uuid4()),
+                "company_id": comp["id"],
+                "email": comp["email"],
+                "password_hash": comp["password_hash"],
+                "role": "admin",
+                "full_name": comp.get("company_name", "Administrador"),
+                "cargo": "Administrador",
+                "departamento": "",
+                "photo_base64": "",
+                "created_at": comp.get("created_at", datetime.now(timezone.utc).isoformat()),
+            })
+        await db.companies.update_one({"id": comp["id"]}, {"$unset": {"password_hash": ""}})
+
     admin_email = os.environ.get("ADMIN_EMAIL", "").lower()
     admin_password = os.environ.get("ADMIN_PASSWORD", "")
     if admin_email and admin_password:
-        existing = await db.companies.find_one({"email": admin_email})
-        if not existing:
+        company = await db.companies.find_one({"email": admin_email})
+        if not company:
             company = {
                 "id": str(uuid.uuid4()),
                 "email": admin_email,
-                "password_hash": hash_password(admin_password),
                 "company_name": "TechFlow Solutions Lda",
                 "nif": "509876543",
                 "iban": "PT50 0010 0000 1234 5678 9017 5",
                 "country": "PT",
+                "google_client_id": "",
                 "primary_color": "#2563EB",
                 "logo_base64": "",
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -589,10 +762,42 @@ async def startup():
             await db.companies.insert_one(company)
             await seed_sample_charges(company["id"])
             logger.info("Empresa admin criada: %s", admin_email)
-        elif not verify_password(admin_password, existing["password_hash"]):
-            await db.companies.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
 
-        admin = await db.companies.find_one({"email": admin_email})
+        existing_user = await db.users.find_one({"email": admin_email})
+        if not existing_user:
+            await db.users.insert_one({
+                "id": str(uuid.uuid4()),
+                "company_id": company["id"],
+                "email": admin_email,
+                "password_hash": hash_password(admin_password),
+                "role": "admin",
+                "full_name": "Denis Ferreira",
+                "cargo": "Administrador",
+                "departamento": "Gestão",
+                "photo_base64": "",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            logger.info("Utilizador admin criado: %s", admin_email)
+        elif not verify_password(admin_password, existing_user["password_hash"]):
+            await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+
+        cobrador_email = "cobrador@techflow.pt"
+        if not await db.users.find_one({"email": cobrador_email}):
+            await db.users.insert_one({
+                "id": str(uuid.uuid4()),
+                "company_id": company["id"],
+                "email": cobrador_email,
+                "password_hash": hash_password("Cobrador2026!"),
+                "role": "cobrador",
+                "full_name": "Rui Tavares",
+                "cargo": "Cobrador",
+                "departamento": "Cobranças",
+                "photo_base64": "",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+            logger.info("Utilizador cobrador demo criado")
+
+        admin = company
         if admin and not await db.charges.find_one({"company_id": admin["id"], "status": "negociacao"}):
             charge = {
                 "id": str(uuid.uuid4()),

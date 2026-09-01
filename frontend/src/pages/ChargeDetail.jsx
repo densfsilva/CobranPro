@@ -6,6 +6,7 @@ import { api, formatApiError } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money, idLabel } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { useAuth } from "@/context/AuthContext";
 import MessageModal from "@/components/MessageModal";
 import ChargeTimeline from "@/components/ChargeTimeline";
 import ChargeDocuments from "@/components/ChargeDocuments";
@@ -14,6 +15,7 @@ import NegotiationCard from "@/components/NegotiationCard";
 export default function ChargeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [charge, setCharge] = useState(null);
   const [modal, setModal] = useState(null); // 'whatsapp' | 'email' | null
   const [busy, setBusy] = useState(false);
@@ -76,6 +78,7 @@ export default function ChargeDetail() {
             {pendente && charge.days_overdue > 0 && <> · <span className="text-rose-400 font-medium">{charge.days_overdue} dias em atraso</span></>}
           </p>
         </div>
+        {isAdmin && (
         <div className="flex gap-2 flex-wrap">
           {charge.status !== "paga" && (
             <button onClick={() => setStatus("paga")} disabled={busy} data-testid="toggle-paid-btn"
@@ -106,6 +109,7 @@ export default function ChargeDetail() {
             <Trash2 size={16} />
           </button>
         </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -127,7 +131,7 @@ export default function ChargeDetail() {
         </div>
 
         <div className="space-y-4">
-          {charge.status === "negociacao" && <NegotiationCard charge={charge} onUpdate={setCharge} />}
+          {charge.status === "negociacao" && isAdmin && <NegotiationCard charge={charge} onUpdate={setCharge} />}
           <div className="bg-card border border-border rounded-xl p-6" data-testid="charge-amount-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><FileText size={13} /> Valor em Dívida</p>
             <p className="font-heading text-3xl font-extrabold font-mono-num mt-2" data-testid="charge-amount-value">{money(charge.amount)}</p>

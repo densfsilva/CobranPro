@@ -22,6 +22,14 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 6: RBAC, Gestão de Equipa e Perfil
+- Nova coleção `users` separada de `companies`: cada empresa tem múltiplos utilizadores com email+senha próprios (bcrypt); migração automática no startup (empresas antigas com password_hash → utilizador admin)
+- RBAC com 2 níveis: Administrador (acesso total) e Cobrador (lista pendentes + regista atividades); role re-lido da BD a cada pedido (`require_admin` dependency) — cobrador recebe 403 em Dashboard, Relatórios, Configurações, Equipa, criar/editar/apagar cobranças, importar PDF e apagar documentos
+- Endpoints: GET /api/team, POST /api/team/invite, PUT /api/team/{id}/role, DELETE /api/team/{id} (admin only; proteções: não remover/rebaixar a própria conta); PUT /api/profile (nome, cargo, departamento, fotografia base64) e PUT /api/profile/password
+- Frontend: página Equipa (/equipa, admin) com convite de membros e gestão de roles; página Perfil (/perfil) com fotografia e alteração de senha; sidebar com card do utilizador, badge de role no topbar, menu filtrado por role; cobrador entra em /pendentes e rotas admin redirecionam
+- Contas demo: admin denis.ferreira0909@gmail.com / Cobrancas2026! e cobrador@techflow.pt / Cobrador2026! (mesma empresa)
+- Fix: teste bcrypt atualizado para a coleção users; nome do admin migrado corrigido para "Denis Ferreira"
+
 ### 2026-09-01 — Iteração 5: i18n PT/BR e revisão ortográfica
 - Dicionário dinâmico `/app/frontend/src/lib/i18n.js` (função `t()` + `invoiceWord()`): vocabulário muda com o País — PT: Factura/Utilizador/Ecrã/Telemóvel/NIF; BR: Fatura/Usuário/Tela/Celular/CNPJ. Aplicado a cabeçalhos de tabelas, placeholders de pesquisa, ficha de cobrança, formulário, mensagens WhatsApp/Email (inclui "o IBAN" ↔ "a chave PIX / dados bancários") e relatórios/print
 - Pluralização corrigida ("1 factura em negociação" vs "2 facturas")

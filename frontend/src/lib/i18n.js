@@ -11,6 +11,8 @@ const DICT = {
     screen: "Ecrã",
     taxId: "NIF",
     bankRef: "o IBAN",
+    users: "Utilizadores",
+    userLower: "utilizador",
   },
   BR: {
     invoice: "Fatura",
@@ -22,6 +24,8 @@ const DICT = {
     screen: "Tela",
     taxId: "CNPJ",
     bankRef: "a chave PIX / dados bancários",
+    users: "Usuários",
+    userLower: "usuário",
   },
 };
 

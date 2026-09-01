@@ -295,13 +295,14 @@ def test_password_hash_format_bcrypt():
 
     async def run():
         cl = AsyncIOMotorClient(mongo_url)
-        doc = await cl[db_name].companies.find_one({"email": admin_email})
+        doc = await cl[db_name].users.find_one({"email": admin_email})
         cl.close()
         return doc
 
     doc = asyncio.run(run())
-    assert doc is not None, "admin company not seeded"
+    assert doc is not None, "admin user not seeded"
     assert doc["password_hash"].startswith("$2b$"), doc["password_hash"][:10]
+    assert doc["role"] == "admin", doc["role"]
 
 
 def test_cors_allows_credentials_with_explicit_origin(api_client):

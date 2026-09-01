@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 
 export default function AuthPage() {
   const [mode, setMode] = useState("login");
-  const [form, setForm] = useState({ company_name: "", email: "", password: "" });
+  const [form, setForm] = useState({ company_name: "", full_name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const { login } = useAuth();
@@ -23,7 +23,7 @@ export default function AuthPage() {
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
       const payload = mode === "login" ? { email: form.email, password: form.password } : form;
       const { data } = await api.post(endpoint, payload);
-      login(data.token, data.company);
+      login(data.token, data.company, data.user);
       navigate("/");
     } catch (err) {
       setError(formatApiError(err));
@@ -74,11 +74,18 @@ export default function AuthPage() {
           </div>
           <form onSubmit={submit} className="space-y-4">
             {mode === "register" && (
+              <>
+              <div className="space-y-1.5">
+                <Label htmlFor="full_name">O seu Nome Completo</Label>
+                <Input id="full_name" data-testid="register-full-name-input" required value={form.full_name}
+                  onChange={(e) => setForm({ ...form, full_name: e.target.value })} placeholder="Ex: Denis Ferreira" className="bg-card" />
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="company_name">Nome da Empresa</Label>
                 <Input id="company_name" data-testid="register-company-name-input" required value={form.company_name}
                   onChange={(e) => setForm({ ...form, company_name: e.target.value })} placeholder="Ex: TechFlow Solutions Lda" className="bg-card" />
               </div>
+              </>
             )}
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>

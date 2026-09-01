@@ -9,11 +9,13 @@ import PendingCharges from "@/pages/PendingCharges";
 import NegotiationCharges from "@/pages/NegotiationCharges";
 import ReceivedHistory from "@/pages/ReceivedHistory";
 import Reports from "@/pages/Reports";
+import Team from "@/pages/Team";
+import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import AppLayout from "@/components/AppLayout";
 
-function Protected({ children }) {
-  const { company, loading } = useAuth();
+function Protected({ children, adminOnly = false }) {
+  const { company, user, loading } = useAuth();
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -22,7 +24,13 @@ function Protected({ children }) {
     );
   }
   if (!company) return <Navigate to="/login" replace />;
+  if (adminOnly && user?.role !== "admin") return <Navigate to="/pendentes" replace />;
   return <AppLayout>{children}</AppLayout>;
+}
+
+function Home() {
+  const { user } = useAuth();
+  return user?.role === "admin" ? <Dashboard /> : <Navigate to="/pendentes" replace />;
 }
 
 function App() {
@@ -31,11 +39,13 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<AuthPage />} />
-          <Route path="/" element={<Protected><Dashboard /></Protected>} />
+          <Route path="/" element={<Protected><Home /></Protected>} />
           <Route path="/pendentes" element={<Protected><PendingCharges /></Protected>} />
           <Route path="/negociacao" element={<Protected><NegotiationCharges /></Protected>} />
           <Route path="/recebidos" element={<Protected><ReceivedHistory /></Protected>} />
-          <Route path="/relatorios" element={<Protected><Reports /></Protected>} />
+          <Route path="/relatorios" element={<Protected adminOnly><Reports /></Protected>} />
+          <Route path="/equipa" element={<Protected adminOnly><Team /></Protected>} />
+          <Route path="/perfil" element={<Protected><Profile /></Protected>} />
           <Route path="/cobranca/:id" element={<Protected><ChargeDetail /></Protected>} />
           <Route path="/configuracoes" element={<Protected><Settings /></Protected>} />
           <Route path="/branding" element={<Navigate to="/configuracoes" replace />} />

@@ -1,18 +1,19 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Clock, Handshake, History, FileBarChart, Settings, LogOut, Wallet } from "lucide-react";
+import { LayoutDashboard, Clock, Handshake, History, FileBarChart, Users, Settings, LogOut, Wallet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard", admin: true },
   { to: "/pendentes", label: "Pendentes", icon: Clock, testid: "nav-pendentes" },
   { to: "/negociacao", label: "Em Negociação", icon: Handshake, testid: "nav-negociacao" },
   { to: "/recebidos", label: "Recebidos", icon: History, testid: "nav-recebidos" },
-  { to: "/relatorios", label: "Relatórios", icon: FileBarChart, testid: "nav-relatorios" },
-  { to: "/configuracoes", label: "Configurações", icon: Settings, testid: "nav-configuracoes" },
+  { to: "/relatorios", label: "Relatórios", icon: FileBarChart, testid: "nav-relatorios", admin: true },
+  { to: "/equipa", label: "Equipa", icon: Users, testid: "nav-equipa", admin: true },
+  { to: "/configuracoes", label: "Configurações", icon: Settings, testid: "nav-configuracoes", admin: true },
 ];
 
 export default function AppLayout({ children }) {
-  const { company, logout } = useAuth();
+  const { company, user, isAdmin, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -40,7 +41,7 @@ export default function AppLayout({ children }) {
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {NAV.map(({ to, label, icon: Icon, testid }) => {
+          {NAV.filter((n) => !n.admin || isAdmin).map(({ to, label, icon: Icon, testid }) => {
             const active = location.pathname === to;
             return (
               <Link
@@ -57,7 +58,18 @@ export default function AppLayout({ children }) {
             );
           })}
         </nav>
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border space-y-1">
+          <Link to="/perfil" data-testid="nav-perfil"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors duration-200">
+            {user?.photo_base64 ? (
+              <img src={user.photo_base64} alt={user.full_name} className="w-7 h-7 rounded-full object-cover shrink-0" data-testid="sidebar-user-photo" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-secondary border border-border flex items-center justify-center text-xs font-bold shrink-0" data-testid="sidebar-user-photo">
+                {(user?.full_name || "?").split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+              </div>
+            )}
+            <span className="hidden lg:inline truncate">{user?.full_name || "Perfil"}</span>
+          </Link>
           <button
             onClick={() => { logout(); navigate("/login"); }}
             data-testid="logout-btn"
@@ -75,7 +87,10 @@ export default function AppLayout({ children }) {
             <span className="hidden sm:inline">CobranPro</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline text-sm text-muted-foreground">{company.email}</span>
+            <span className="hidden sm:inline text-sm text-muted-foreground">{user?.full_name || company.email}</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${isAdmin ? "bg-brand-soft text-brand" : "bg-secondary text-muted-foreground"}`} data-testid="user-role-badge">
+              {isAdmin ? "Admin" : "Cobrador"}
+            </span>
             <span className="w-3 h-3 rounded-full bg-brand ring-2 ring-brand/30" data-testid="brand-color-dot" title={company.primary_color} />
           </div>
         </header>

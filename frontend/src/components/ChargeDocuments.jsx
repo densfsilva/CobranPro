@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FolderOpen, Upload, Eye, Trash2, FileText, Image as ImageIcon } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 const CATEGORIES = {
   nota_fiscal: "Nota Fiscal",
@@ -11,6 +12,7 @@ const CATEGORIES = {
 };
 
 export default function ChargeDocuments({ charge }) {
+  const { isAdmin } = useAuth();
   const [docs, setDocs] = useState([]);
   const [category, setCategory] = useState("nota_fiscal");
   const [busy, setBusy] = useState(false);
@@ -101,10 +103,12 @@ export default function ChargeDocuments({ charge }) {
               className="p-1.5 rounded-md text-muted-foreground hover:text-brand hover:bg-brand-soft transition-colors duration-200" title="Visualizar">
               <Eye size={14} />
             </button>
-            <button onClick={() => remove(doc)} data-testid={`doc-delete-${doc.id}`}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors duration-200" title="Eliminar">
-              <Trash2 size={14} />
-            </button>
+            {isAdmin && (
+              <button onClick={() => remove(doc)} data-testid={`doc-delete-${doc.id}`}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors duration-200" title="Eliminar">
+                <Trash2 size={14} />
+              </button>
+            )}
           </div>
         ))}
         {docs.length === 0 && (

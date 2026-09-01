@@ -6,10 +6,12 @@ import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
+import { useAuth } from "@/context/AuthContext";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
 import ImportPdfDialog from "@/components/ImportPdfDialog";
 
 export default function PendingCharges() {
+  const { isAdmin } = useAuth();
   const [charges, setCharges] = useState([]);
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -45,16 +47,18 @@ export default function PendingCharges() {
             <span className="font-mono-num font-semibold text-foreground" data-testid="pendentes-total">{money(total)}</span> em dívida
           </p>
         </div>
-        <div className="flex gap-2">
-          <ImportPdfDialog onImported={load} />
-          <button
-            onClick={() => setFormOpen(true)}
-            data-testid="pendentes-new-charge-btn"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
-          >
-            <Plus size={16} /> Nova Cobrança
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <ImportPdfDialog onImported={load} />
+            <button
+              onClick={() => setFormOpen(true)}
+              data-testid="pendentes-new-charge-btn"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
+            >
+              <Plus size={16} /> Nova Cobrança
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">

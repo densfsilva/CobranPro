@@ -10,6 +10,7 @@ export function applyBrandColor(hex) {
 
 export function AuthProvider({ children }) {
   const [company, setCompany] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,7 +21,9 @@ export function AuthProvider({ children }) {
     }
     api.get("/auth/me")
       .then(({ data }) => {
-        setCompany(data);
+        const { user: u, ...comp } = data;
+        setCompany(comp);
+        setUser(u || null);
         applyBrandColor(data.primary_color);
         setCountry(data.country);
       })
@@ -28,9 +31,10 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback((token, companyData) => {
+  const login = useCallback((token, companyData, userData) => {
     localStorage.setItem("cobranpro_token", token);
     setCompany(companyData);
+    setUser(userData || null);
     applyBrandColor(companyData.primary_color);
     setCountry(companyData.country);
   }, []);
@@ -38,6 +42,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem("cobranpro_token");
     setCompany(null);
+    setUser(null);
     applyBrandColor("#2563EB");
     setCountry("PT");
   }, []);
@@ -48,8 +53,10 @@ export function AuthProvider({ children }) {
     setCountry(data.country);
   }, []);
 
+  const updateUser = useCallback((u) => setUser(u), []);
+
   return (
-    <AuthContext.Provider value={{ company, loading, login, logout, updateCompany }}>
+    <AuthContext.Provider value={{ company, user, loading, isAdmin: user?.role === "admin", login, logout, updateCompany, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
