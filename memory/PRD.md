@@ -22,6 +22,15 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 3: Fluxo, Timeline, Anexos e Relatórios
+- Novo status `negociacao` ("Em Negociação"): excluído dos KPIs/buckets de cobrança ativa; página própria (/negociacao, badge laranja); ações na ficha: Em Negociação / Retomar Cobrança / Marcar como Paga
+- Timeline de contactos na ficha: coleção `interactions` (chamada/email/whatsapp/nota), GET/POST /api/charges/{id}/interactions
+- Campo `next_contact_date` na cobrança: alerta automático no Dashboard (GET /api/dashboard devolve `followups` com contactos vencidos; banner âmbar com links)
+- Gestão de Anexos: coleção `documents` (base64, máx 5MB, categorias Nota Fiscal/Comprovativo/Guia de Entrega/Outro), endpoints list/upload/download/delete por cobrança
+- Módulo de Relatórios (/relatorios): filtros por cliente, estado (Atrasado/Recebido/Negociando/Por Vencer) e intervalo de datas de vencimento; botão Imprimir/Gerar PDF com layout print-only profissional (logo, filtros aplicados, tabela e totais) via @media print em index.css
+- Fix: serialização ObjectId em add_document (500 após insert); badge "Em Negociação" na tabela do Dashboard
+- Seed demo: cobrança "Construções Horizonte S.A." em negociação com follow-up vencido + interação + documento de exemplo
+
 ### 2026-09-01 — Iteração 2: Localização, White Label e Menu Lateral
 - Seletor de País (Portugal/Brasil) nas Configurações: moeda adapta-se automaticamente (€ pt-PT / R$ pt-BR) e o campo de identificação muda (NIF / CNPJ) em todo o app (`/app/frontend/src/lib/format.js`); backend aceita `country` em PUT /api/branding com validação PT/BR
 - Ecrã de Configurações unificado (rota /configuracoes): Localização + Identidade (logótipo upload base64, nome, NIF/CNPJ, IBAN/PIX) + Cor de Marca (color picker + presets) — a cor aplica-se a botões e menus de toda a app

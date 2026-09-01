@@ -61,3 +61,26 @@
         display: contents !important;
     }
 }
+
+#print-report {
+    display: none;
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #print-report, #print-report * {
+        visibility: visible;
+    }
+    #print-report {
+        display: block;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: #fff;
+        color: #0f172a;
+        padding: 32px;
+    }
+}

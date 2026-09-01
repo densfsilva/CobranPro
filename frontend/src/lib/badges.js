@@ -4,6 +4,7 @@ export const BUCKETS = {
   amarelo: { label: "Atraso Moderado (16-30d)", cls: "bg-amber-500/15 text-amber-400 border-amber-500/30", hex: "#F59E0B" },
   vermelho: { label: "Atraso Crítico (31-60d)", cls: "bg-rose-500/15 text-rose-400 border-rose-500/30", hex: "#EF4444" },
   roxo: { label: "Contencioso (>60d)", cls: "bg-purple-500/15 text-purple-400 border-purple-500/30", hex: "#8B5CF6" },
+  negociacao: { label: "Em Negociação", cls: "bg-orange-500/15 text-orange-400 border-orange-500/30", hex: "#F97316" },
   paga: { label: "Paga", cls: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30", hex: "#71717A" },
 };
 

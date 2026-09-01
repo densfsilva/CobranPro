@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MessageCircle, Mail, Phone, User, FileText, StickyNote, Trash2, CheckCircle2, Clock } from "lucide-react";
+import { ArrowLeft, MessageCircle, Mail, Phone, User, FileText, StickyNote, Trash2, CheckCircle2, Clock, Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money, idLabel } from "@/lib/format";
 import MessageModal from "@/components/MessageModal";
+import ChargeTimeline from "@/components/ChargeTimeline";
+import ChargeDocuments from "@/components/ChargeDocuments";
 
 export default function ChargeDetail() {
   const { id } = useParams();
@@ -33,12 +35,13 @@ export default function ChargeDetail() {
   const badge = BUCKETS[charge.bucket];
   const pendente = charge.status === "pendente";
 
-  const togglePaid = async () => {
+  const setStatus = async (s) => {
     setBusy(true);
     try {
-      const { data } = await api.put(`/charges/${id}`, { ...charge, status: pendente ? "paga" : "pendente" });
+      const { data } = await api.put(`/charges/${id}`, { ...charge, status: s });
       setCharge(data);
-      toast.success(pendente ? "Cobrança marcada como paga" : "Cobrança reaberta");
+      const msgs = { paga: "Cobrança marcada como paga", negociacao: "Cobrança movida para Em Negociação", pendente: "Cobrança de volta ao fluxo ativo" };
+      toast.success(msgs[s]);
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
@@ -71,13 +74,31 @@ export default function ChargeDetail() {
             {pendente && charge.days_overdue > 0 && <> · <span className="text-rose-400 font-medium">{charge.days_overdue} dias em atraso</span></>}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={togglePaid} disabled={busy} data-testid="toggle-paid-btn"
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all duration-200 ${
-              pendente ? "border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10" : "border-border text-muted-foreground hover:bg-secondary"
-            }`}>
-            <CheckCircle2 size={16} /> {pendente ? "Marcar como Paga" : "Reabrir"}
-          </button>
+        <div className="flex gap-2 flex-wrap">
+          {charge.status !== "paga" && (
+            <button onClick={() => setStatus("paga")} disabled={busy} data-testid="toggle-paid-btn"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 transition-all duration-200">
+              <CheckCircle2 size={16} /> Marcar como Paga
+            </button>
+          )}
+          {charge.status === "pendente" && (
+            <button onClick={() => setStatus("negociacao")} disabled={busy} data-testid="negotiate-btn"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 transition-all duration-200">
+              <Handshake size={16} /> Em Negociação
+            </button>
+          )}
+          {charge.status === "negociacao" && (
+            <button onClick={() => setStatus("pendente")} disabled={busy} data-testid="resume-collection-btn"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-secondary transition-all duration-200">
+              <Clock size={16} /> Retomar Cobrança
+            </button>
+          )}
+          {charge.status === "paga" && (
+            <button onClick={() => setStatus("pendente")} disabled={busy} data-testid="reopen-btn"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-secondary transition-all duration-200">
+              <Clock size={16} /> Reabrir
+            </button>
+          )}
           <button onClick={remove} data-testid="delete-charge-btn"
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-rose-500/40 text-rose-400 hover:bg-rose-500/10 transition-all duration-200">
             <Trash2 size={16} />
@@ -138,6 +159,13 @@ export default function ChargeDetail() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <ChargeTimeline charge={charge} onChargeUpdate={setCharge} />
+        </div>
+        <ChargeDocuments charge={charge} />
       </div>
 
       <MessageModal channel={modal} charge={charge} open={!!modal} onOpenChange={() => setModal(null)} />

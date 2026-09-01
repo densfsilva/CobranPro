@@ -129,8 +129,9 @@ class TestDashboard:
         assert d["total_debt"] == 15341.25, d
         assert d["recovered"] == 640.0, d
         assert d["critical_debt"] == 8510.75, d
-        assert d["success_rate"] == 17, d
+        assert d["success_rate"] == 14, d
         assert d["pending_count"] == 5 and d["paid_count"] == 1
+        assert d["negotiation_count"] == 1 and d["negotiation_amount"] == 4320.0, d
         assert d["buckets"] == {"por_vencer": 1, "verde": 1, "amarelo": 1, "vermelho": 1, "roxo": 1}, d["buckets"]
 
     def test_bucket_assignment_on_charges(self, authed):

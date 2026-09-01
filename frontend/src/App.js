@@ -6,7 +6,9 @@ import AuthPage from "@/pages/AuthPage";
 import Dashboard from "@/pages/Dashboard";
 import ChargeDetail from "@/pages/ChargeDetail";
 import PendingCharges from "@/pages/PendingCharges";
+import NegotiationCharges from "@/pages/NegotiationCharges";
 import ReceivedHistory from "@/pages/ReceivedHistory";
+import Reports from "@/pages/Reports";
 import Settings from "@/pages/Settings";
 import AppLayout from "@/components/AppLayout";
 
@@ -31,7 +33,9 @@ function App() {
           <Route path="/login" element={<AuthPage />} />
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
           <Route path="/pendentes" element={<Protected><PendingCharges /></Protected>} />
+          <Route path="/negociacao" element={<Protected><NegotiationCharges /></Protected>} />
           <Route path="/recebidos" element={<Protected><ReceivedHistory /></Protected>} />
+          <Route path="/relatorios" element={<Protected><Reports /></Protected>} />
           <Route path="/cobranca/:id" element={<Protected><ChargeDetail /></Protected>} />
           <Route path="/configuracoes" element={<Protected><Settings /></Protected>} />
           <Route path="/branding" element={<Navigate to="/configuracoes" replace />} />

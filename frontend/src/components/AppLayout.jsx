@@ -1,11 +1,13 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Clock, History, Settings, LogOut, Wallet } from "lucide-react";
+import { LayoutDashboard, Clock, Handshake, History, FileBarChart, Settings, LogOut, Wallet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
   { to: "/pendentes", label: "Pendentes", icon: Clock, testid: "nav-pendentes" },
+  { to: "/negociacao", label: "Em Negociação", icon: Handshake, testid: "nav-negociacao" },
   { to: "/recebidos", label: "Recebidos", icon: History, testid: "nav-recebidos" },
+  { to: "/relatorios", label: "Relatórios", icon: FileBarChart, testid: "nav-relatorios" },
   { to: "/configuracoes", label: "Configurações", icon: Settings, testid: "nav-configuracoes" },
 ];
 

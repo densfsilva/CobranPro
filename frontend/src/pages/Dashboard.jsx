@@ -61,6 +61,27 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {stats?.followups?.length > 0 && (
+        <div data-testid="dashboard-followup-alert" className="border border-amber-500/40 bg-amber-500/10 rounded-xl p-4 space-y-2">
+          <p className="text-sm font-semibold text-amber-300 flex items-center gap-2">
+            <AlertTriangle size={16} /> {stats.followups.length} follow-up(s) de contacto em atraso
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {stats.followups.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => navigate(`/cobranca/${f.id}`)}
+                data-testid={`followup-item-${f.id}`}
+                className="px-3 py-1.5 rounded-lg bg-background/60 border border-amber-500/30 text-xs hover:border-amber-400 hover:scale-[1.02] transition-all duration-200"
+              >
+                <span className="font-medium">{f.debtor_name}</span>
+                <span className="text-muted-foreground"> · {f.invoice_number} · previsto {fmtDate(f.next_contact_date)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {KPI_CONFIG.map(({ key, label, icon: Icon, testid, suffix }, i) => (
           <div
@@ -110,7 +131,7 @@ export default function Dashboard() {
               />
             </div>
             <div className="flex gap-1.5 flex-wrap">
-              {["todas", "verde", "amarelo", "vermelho", "roxo", "paga"].map((b) => (
+              {["todas", "verde", "amarelo", "vermelho", "roxo", "negociacao", "paga"].map((b) => (
                 <button
                   key={b}
                   data-testid={`debtor-filter-${b}`}
@@ -153,7 +174,7 @@ export default function Dashboard() {
                     <td className="py-3 pr-3 text-right font-mono-num font-semibold">{money(c.amount)}</td>
                     <td className="py-3 text-right">
                       <span data-testid={`debtor-badge-${c.id}`} className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${BUCKETS[c.bucket].cls}`}>
-                        {c.status === "paga" ? "Paga" : c.bucket === "por_vencer" ? "Por Vencer" : `${c.days_overdue}d atraso`}
+                        {c.status === "paga" ? "Paga" : c.bucket === "por_vencer" ? "Por Vencer" : c.bucket === "negociacao" ? "Em Negociação" : `${c.days_overdue}d atraso`}
                       </span>
                     </td>
                   </tr>
