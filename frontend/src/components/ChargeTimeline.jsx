@@ -8,7 +8,6 @@ const TYPES = {
   chamada: { label: "Chamada", icon: PhoneCall, cls: "text-emerald-400" },
   email: { label: "Email", icon: Mail, cls: "text-sky-400" },
   whatsapp: { label: "WhatsApp", icon: MessageCircle, cls: "text-green-400" },
-  nota: { label: "Nota", icon: StickyNote, cls: "text-amber-400" },
 };
 
 const fmtDT = (iso) =>
@@ -59,7 +58,7 @@ export default function ChargeTimeline({ charge, onChargeUpdate }) {
   return (
     <div className="bg-card border border-border rounded-xl p-6 space-y-5 h-full" data-testid="timeline-section">
       <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
-        <History size={18} className="text-brand" /> Timeline de Contactos
+        <History size={18} className="text-brand" /> Timeline de Atividades
       </h2>
 
       <div className={`rounded-lg border p-3 flex flex-wrap items-center gap-3 ${followupOverdue ? "border-amber-500/40 bg-amber-500/10" : "border-border bg-background"}`}
@@ -100,7 +99,7 @@ export default function ChargeTimeline({ charge, onChargeUpdate }) {
 
       <div className="space-y-0" data-testid="timeline-list">
         {items.map((it, i) => {
-          const T = TYPES[it.type] || TYPES.nota;
+          const T = TYPES[it.type] || { label: "Nota", icon: StickyNote, cls: "text-muted-foreground" };
           return (
             <div key={it.id} className="flex gap-3 group" data-testid={`timeline-item-${it.id}`}>
               <div className="flex flex-col items-center">

@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { toast } from "sonner";
-import { Palette, Upload, Building2, Save, Globe, Check } from "lucide-react";
+import { Palette, Upload, Building2, Save, Globe, Check, Cloud } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { idLabel, idPlaceholder, bankLabel } from "@/lib/format";
@@ -21,6 +21,7 @@ export default function Settings() {
     nif: company.nif || "",
     iban: company.iban || "",
     country: company.country || "PT",
+    google_client_id: company.google_client_id || "",
     primary_color: company.primary_color,
     logo_base64: company.logo_base64 || "",
   });
@@ -164,6 +165,17 @@ export default function Settings() {
               <p className="text-sm font-medium">Pré-visualização</p>
               <p className="text-xs text-muted-foreground">Esta cor passa a ser a cor principal dos botões e menus após guardar.</p>
             </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4" data-testid="settings-integrations-section">
+          <h2 className="font-heading text-lg font-semibold flex items-center gap-2"><Cloud size={18} className="text-brand" /> Integrações</h2>
+          <div className="space-y-1.5">
+            <Label htmlFor="google_client_id">Google Client ID</Label>
+            <Input id="google_client_id" data-testid="settings-google-client-id" value={form.google_client_id}
+              onChange={(e) => setForm({ ...form, google_client_id: e.target.value })}
+              placeholder="xxxx.apps.googleusercontent.com" className="bg-background font-mono-num" />
+            <p className="text-xs text-muted-foreground">Preparado para a futura ligação ao Google Drive — os anexos das cobranças passarão a ser guardados no seu Drive.</p>
           </div>
         </div>
 

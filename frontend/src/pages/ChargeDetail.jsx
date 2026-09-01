@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MessageCircle, Mail, Phone, User, FileText, StickyNote, Trash2, CheckCircle2, Clock, Handshake } from "lucide-react";
+import { ArrowLeft, MessageCircle, Mail, Phone, User, FileText, Trash2, CheckCircle2, Clock, Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
@@ -8,6 +8,7 @@ import { money, idLabel } from "@/lib/format";
 import MessageModal from "@/components/MessageModal";
 import ChargeTimeline from "@/components/ChargeTimeline";
 import ChargeDocuments from "@/components/ChargeDocuments";
+import NegotiationCard from "@/components/NegotiationCard";
 
 export default function ChargeDetail() {
   const { id } = useParams();
@@ -122,15 +123,10 @@ export default function ChargeDetail() {
               </div>
             ))}
           </div>
-          {charge.notes && (
-            <div className="pt-2 border-t border-border">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1.5"><StickyNote size={13} /> Notas internas</p>
-              <p className="text-sm text-muted-foreground leading-relaxed">{charge.notes}</p>
-            </div>
-          )}
         </div>
 
         <div className="space-y-4">
+          {charge.status === "negociacao" && <NegotiationCard charge={charge} onUpdate={setCharge} />}
           <div className="bg-card border border-border rounded-xl p-6" data-testid="charge-amount-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><FileText size={13} /> Valor em Dívida</p>
             <p className="font-heading text-3xl font-extrabold font-mono-num mt-2" data-testid="charge-amount-value">{money(charge.amount)}</p>

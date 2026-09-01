@@ -11,9 +11,12 @@ import logging
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional, List
 
+import io
+
 import bcrypt
 import jwt
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends
+import pdfplumber
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -62,6 +65,7 @@ def serialize_company(doc: dict) -> dict:
         "nif": doc.get("nif", ""),
         "iban": doc.get("iban", ""),
         "country": doc.get("country", "PT"),
+        "google_client_id": doc.get("google_client_id", ""),
         "primary_color": doc.get("primary_color", "#2563EB"),
         "logo_base64": doc.get("logo_base64", ""),
         "created_at": doc.get("created_at"),
@@ -127,6 +131,7 @@ class BrandingInput(BaseModel):
     nif: Optional[str] = None
     iban: Optional[str] = None
     country: Optional[str] = None
+    google_client_id: Optional[str] = None
     primary_color: Optional[str] = None
     logo_base64: Optional[str] = None
 
@@ -141,6 +146,8 @@ class ChargeInput(BaseModel):
     due_date: str
     status: str = "pendente"
     next_contact_date: Optional[str] = None
+    promise_date: Optional[str] = None
+    agreed_amount: Optional[float] = None
     notes: Optional[str] = ""
 
 
@@ -230,12 +237,14 @@ async def list_charges(company: dict = Depends(get_current_company)):
 
 @api_router.post("/charges")
 async def create_charge(data: ChargeInput, company: dict = Depends(get_current_company)):
-    for label, value in (("Data de vencimento", data.due_date), ("Próximo contacto", data.next_contact_date)):
+    for label, value in (("Data de vencimento", data.due_date), ("Próximo contacto", data.next_contact_date), ("Promessa de pagamento", data.promise_date)):
         if value:
             try:
                 date.fromisoformat(value)
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"{label} inválida (AAAA-MM-DD)")
+    if data.agreed_amount is not None and data.agreed_amount <= 0:
+        raise HTTPException(status_code=400, detail="Valor acordado tem de ser positivo")
     if data.status not in ("pendente", "paga", "negociacao"):
         raise HTTPException(status_code=400, detail="Estado inválido")
     charge = data.model_dump()
@@ -370,6 +379,111 @@ async def delete_document(doc_id: str, company: dict = Depends(get_current_compa
     return {"ok": True}
 
 
+# ---------- Importação PDF (Relatório ERP) ----------
+
+DATE_RE = re.compile(r"\b(\d{2})[/-](\d{2})[/-](\d{4})\b")
+NIF_RE = re.compile(r"\b\d{9}\b")
+CNPJ_RE = re.compile(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
+AMOUNT_RE = re.compile(r"(?:€|R\$)?\s*(\d{1,3}(?:[.\s ]\d{3})+,\d{2}|\d+,\d{2}|\d{1,3}(?:,\d{3})+\.\d{2}|\d+\.\d{2})")
+INVOICE_RE = re.compile(r"\b((?:FT|FAT|FR|NC|INV)[-/\s]?\d[\w/-]*)", re.IGNORECASE)
+
+
+def parse_amount(raw: str) -> float:
+    s = raw.replace(" ", " ").strip()
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(" ", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif "," in s:
+        s = s.replace(" ", "").replace(",", ".")
+    return float(s)
+
+
+@api_router.post("/charges/import-pdf")
+async def import_charges_pdf(file: UploadFile = File(...), company: dict = Depends(get_current_company)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="O ficheiro tem de ser um PDF")
+    content = await file.read()
+    if len(content) > 10_000_000:
+        raise HTTPException(status_code=400, detail="PDF demasiado grande (máx 10MB)")
+
+    try:
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            lines = []
+            for page in pdf.pages:
+                lines.extend((page.extract_text() or "").splitlines())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Não foi possível ler o PDF")
+
+    created, skipped = [], []
+    for line in lines:
+        line = line.strip()
+        if len(line) < 10:
+            continue
+        lower = line.lower()
+        if any(k in lower for k in ("total", "relatório", "relatorio", "página", "pagina", "vencimento")):
+            continue
+        date_m = DATE_RE.search(line)
+        if not date_m:
+            skipped.append(line[:80])
+            continue
+        rest = line.replace(date_m.group(0), " ")
+        nif_m = NIF_RE.search(rest) or CNPJ_RE.search(rest)
+        amounts = AMOUNT_RE.findall(rest)
+        if not (nif_m and amounts):
+            skipped.append(line[:80])
+            continue
+        try:
+            due = date(int(date_m.group(3)), int(date_m.group(2)), int(date_m.group(1))).isoformat()
+            amount = max(parse_amount(a) for a in amounts)
+        except (ValueError, OverflowError):
+            skipped.append(line[:80])
+            continue
+        if amount <= 0:
+            skipped.append(line[:80])
+            continue
+        inv_m = INVOICE_RE.search(rest)
+        name = rest.replace(nif_m.group(0), " ")
+        if inv_m:
+            name = name.replace(inv_m.group(0), " ")
+        name = AMOUNT_RE.sub(" ", name)
+        name = re.sub(r"€|R\$", " ", name)
+        name = re.sub(r"\s{2,}", " ", name).strip(" -|•·")
+        if len(name) < 3:
+            skipped.append(line[:80])
+            continue
+        charge = {
+            "id": str(uuid.uuid4()),
+            "company_id": company["id"],
+            "debtor_name": name[:200],
+            "debtor_email": "",
+            "debtor_phone": "",
+            "debtor_nif": nif_m.group(0),
+            "invoice_number": (inv_m.group(0) if inv_m else f"IMP-{len(created) + 1:03d}").upper().replace(" ", ""),
+            "amount": round(amount, 2),
+            "due_date": due,
+            "status": "pendente",
+            "next_contact_date": None,
+            "promise_date": None,
+            "agreed_amount": None,
+            "notes": f"Importado de {file.filename}",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.charges.insert_one(charge)
+        charge.pop("_id", None)
+        created.append(charge)
+
+    if not created and not skipped:
+        raise HTTPException(status_code=400, detail="O PDF não contém texto legível (pode ser um documento digitalizado)")
+    return {
+        "created_count": len(created),
+        "created": [compute_aging(c) for c in created],
+        "skipped_count": len(skipped),
+        "skipped": skipped[:20],
+    }
+
+
 # ---------- Dashboard ----------
 
 @api_router.get("/dashboard")
@@ -390,10 +504,21 @@ async def dashboard(company: dict = Depends(get_current_company)):
         buckets[c["bucket"]] = buckets.get(c["bucket"], 0) + 1
 
     today_iso = date.today().isoformat()
-    followups = sorted(
-        [c for c in charges if c["status"] != "paga" and c.get("next_contact_date") and c["next_contact_date"] <= today_iso],
-        key=lambda c: c["next_contact_date"],
-    )
+    followups = []
+    for c in charges:
+        if c["status"] == "paga":
+            continue
+        if c.get("next_contact_date") and c["next_contact_date"] <= today_iso:
+            followups.append({
+                "id": c["id"], "debtor_name": c["debtor_name"], "invoice_number": c["invoice_number"],
+                "kind": "contacto", "date": c["next_contact_date"],
+            })
+        if c["status"] == "negociacao" and c.get("promise_date") and c["promise_date"] <= today_iso:
+            followups.append({
+                "id": c["id"], "debtor_name": c["debtor_name"], "invoice_number": c["invoice_number"],
+                "kind": "promessa", "date": c["promise_date"], "agreed_amount": c.get("agreed_amount"),
+            })
+    followups.sort(key=lambda a: a["date"])
 
     return {
         "total_debt": round(total_debt, 2),
@@ -405,10 +530,7 @@ async def dashboard(company: dict = Depends(get_current_company)):
         "negotiation_count": len(negociacao),
         "negotiation_amount": round(sum(c["amount"] for c in negociacao), 2),
         "buckets": buckets,
-        "followups": [
-            {"id": c["id"], "debtor_name": c["debtor_name"], "invoice_number": c["invoice_number"], "next_contact_date": c["next_contact_date"], "bucket": c["bucket"]}
-            for c in followups
-        ],
+        "followups": followups,
     }
 
 
@@ -497,6 +619,14 @@ async def startup():
                 "created_at": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat(),
             })
             logger.info("Cobrança demo em negociação criada")
+
+        if admin:
+            neg = await db.charges.find_one({"company_id": admin["id"], "status": "negociacao"})
+            if neg and not neg.get("promise_date"):
+                await db.charges.update_one(
+                    {"id": neg["id"]},
+                    {"$set": {"promise_date": (date.today() - timedelta(days=1)).isoformat(), "agreed_amount": neg["amount"]}},
+                )
 
 
 @app.on_event("shutdown")

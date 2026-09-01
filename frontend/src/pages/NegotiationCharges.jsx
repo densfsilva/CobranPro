@@ -57,7 +57,7 @@ export default function NegotiationCharges() {
                 <th className="pb-3 font-medium">Devedor</th>
                 <th className="pb-3 font-medium">Fatura</th>
                 <th className="pb-3 font-medium">Vencimento</th>
-                <th className="pb-3 font-medium">Próximo Contacto</th>
+                <th className="pb-3 font-medium">Promessa Pag.</th>
                 <th className="pb-3 font-medium text-right">Valor</th>
                 <th className="pb-3 font-medium text-right">Estado</th>
               </tr>
@@ -76,8 +76,19 @@ export default function NegotiationCharges() {
                   </td>
                   <td className="py-3 pr-3 font-mono-num text-xs">{c.invoice_number}</td>
                   <td className="py-3 pr-3 text-muted-foreground">{fmtDate(c.due_date)}</td>
-                  <td className="py-3 pr-3 text-muted-foreground">{c.next_contact_date ? fmtDate(c.next_contact_date) : "—"}</td>
-                  <td className="py-3 pr-3 text-right font-mono-num font-semibold">{money(c.amount)}</td>
+                  <td className="py-3 pr-3">
+                    {c.promise_date ? (
+                      <span className={c.promise_date <= new Date().toISOString().slice(0, 10) ? "text-rose-400 font-medium" : "text-muted-foreground"}>
+                        {fmtDate(c.promise_date)}
+                      </span>
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </td>
+                  <td className="py-3 pr-3 text-right font-mono-num font-semibold">
+                    {money(c.amount)}
+                    {c.agreed_amount != null && (
+                      <span className="block text-xs text-orange-400 font-normal">acordado {money(c.agreed_amount)}</span>
+                    )}
+                  </td>
                   <td className="py-3 text-right">
                     <span data-testid={`negociacao-badge-${c.id}`} className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${BUCKETS.negociacao.cls}`}>
                       Em Negociação

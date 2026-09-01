@@ -7,6 +7,7 @@ import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
+import ImportPdfDialog from "@/components/ImportPdfDialog";
 
 const KPI_CONFIG = [
   { key: "total_debt", label: "Total em Dívida", icon: Banknote, testid: "dashboard-kpi-total-debt" },
@@ -52,19 +53,22 @@ export default function Dashboard() {
           <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">Dashboard Financeiro</h1>
           <p className="text-sm text-muted-foreground mt-1">Visão geral das suas cobranças e antiguidade da dívida.</p>
         </div>
-        <button
-          onClick={() => setFormOpen(true)}
-          data-testid="new-charge-btn"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
-        >
-          <Plus size={16} /> Nova Cobrança
-        </button>
+        <div className="flex gap-2">
+          <ImportPdfDialog onImported={load} />
+          <button
+            onClick={() => setFormOpen(true)}
+            data-testid="new-charge-btn"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
+          >
+            <Plus size={16} /> Nova Cobrança
+          </button>
+        </div>
       </div>
 
       {stats?.followups?.length > 0 && (
         <div data-testid="dashboard-followup-alert" className="border border-amber-500/40 bg-amber-500/10 rounded-xl p-4 space-y-2">
           <p className="text-sm font-semibold text-amber-300 flex items-center gap-2">
-            <AlertTriangle size={16} /> {stats.followups.length} follow-up(s) de contacto em atraso
+            <AlertTriangle size={16} /> {stats.followups.length} alerta(s): follow-ups e promessas de pagamento em atraso
           </p>
           <div className="flex flex-wrap gap-2">
             {stats.followups.map((f) => (
@@ -75,7 +79,11 @@ export default function Dashboard() {
                 className="px-3 py-1.5 rounded-lg bg-background/60 border border-amber-500/30 text-xs hover:border-amber-400 hover:scale-[1.02] transition-all duration-200"
               >
                 <span className="font-medium">{f.debtor_name}</span>
-                <span className="text-muted-foreground"> · {f.invoice_number} · previsto {fmtDate(f.next_contact_date)}</span>
+                <span className="text-muted-foreground">
+                  {" "}· {f.invoice_number} · {f.kind === "promessa"
+                    ? `promessa falhada ${fmtDate(f.date)}${f.agreed_amount ? ` (${money(f.agreed_amount)})` : ""}`
+                    : `contacto previsto ${fmtDate(f.date)}`}
+                </span>
               </button>
             ))}
           </div>

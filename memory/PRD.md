@@ -22,6 +22,14 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 4: Negociação avançada, Atividades, Importação PDF e Google Drive (estrutura)
+- Campos `promise_date` (Promessa de Pagamento) e `agreed_amount` (Valor Acordado) na cobrança; card "Negociação" na ficha (visível quando status = Em Negociação); colunas Promessa/Valor Acordado na página Em Negociação
+- Alerta de promessa falhada: se `promise_date` vencer sem baixa (status != paga), entra nos `followups` do GET /api/dashboard com kind="promessa" (banner âmbar no Dashboard)
+- Timeline renomeada para "Timeline de Atividades": tipos Chamada/WhatsApp/Email + resumo; bloco de notas da ficha removido
+- Importar Relatório ERP: POST /api/charges/import-pdf (pdfplumber) extrai Nome, NIF/CNPJ, Valor e Vencimento de cada linha do PDF e cria faturas automaticamente; botão no Dashboard e em Pendentes (ImportPdfDialog com resumo de importação)
+- Google Drive (estrutura): campo `google_client_id` na empresa (PUT /api/branding) + card "Integrações" nas Configurações, preparado para guardar anexos no Drive futuramente
+- Fix: parser de valores ignorava a data antes de extrair montantes (ex.: "15/09/2026 740,00" lia 26740) — corrigido; dependências pdfplumber + reportlab adicionadas a requirements.txt
+
 ### 2026-09-01 — Iteração 3: Fluxo, Timeline, Anexos e Relatórios
 - Novo status `negociacao` ("Em Negociação"): excluído dos KPIs/buckets de cobrança ativa; página própria (/negociacao, badge laranja); ações na ficha: Em Negociação / Retomar Cobrança / Marcar como Paga
 - Timeline de contactos na ficha: coleção `interactions` (chamada/email/whatsapp/nota), GET/POST /api/charges/{id}/interactions
