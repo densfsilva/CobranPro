@@ -1,0 +1,152 @@
+{
+  "project_title": "Plataforma SaaS de Gestão de Cobranças Profissional",
+  "app_type": "dashboard / B2B SaaS App",
+  "language": "pt-PT",
+  "archetype": "THE PERFORMANCE PRO / SWISS HIGH-CONTRAST",
+  "theme_strategy": {
+    "default_mode": "dark",
+    "theme_toggle_supported": true,
+    "dynamic_branding": {
+      "enabled": true,
+      "mechanism": "CSS CSS Custom Variables (--primary, --primary-foreground, --ring) and dynamic HSL updates based on selected tenant company settings",
+      "default_company_primary_color": "#2563EB",
+      "preset_companies": [
+        {
+          "id": "empresa_1",
+          "name": "TechFlow Solutions Lda",
+          "tax_id": "NIF 509876543",
+          "logo_url": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80",
+          "primary_color": "#2563EB"
+        },
+        {
+          "id": "empresa_2",
+          "name": "Construções Silva & Filhos, S.A.",
+          "tax_id": "NIF 501234567",
+          "logo_url": "https://images.unsplash.com/photo-1541888946425-d0fbb186a5b7?w=150&auto=format&fit=crop&q=80",
+          "primary_color": "#D97706"
+        },
+        {
+          "id": "empresa_3",
+          "name": "Distribuição Alimentar Norte",
+          "tax_id": "NIF 503456789",
+          "logo_url": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=150&auto=format&fit=crop&q=80",
+          "primary_color": "#059669"
+        }
+      ]
+    }
+  },
+  "typography": {
+    "heading_font": "Outfit, Cabinet Grotesk, sans-serif",
+    "body_font": "Inter, system-ui, sans-serif",
+    "mono_font": "JetBrains Mono, monospace",
+    "scale": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-lg sm:text-xl font-semibold",
+      "h4": "text-base font-semibold",
+      "body": "text-sm sm:text-base leading-relaxed",
+      "caption": "text-xs font-medium text-muted-foreground uppercase tracking-wider"
+    }
+  },
+  "colors": {
+    "aging_badges": {
+      "green": {
+        "range": "1 - 15 dias de atraso",
+        "label": "Atraso Leve (1-15d)",
+        "bg_class": "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+        "hex": "#10B981"
+      },
+      "yellow": {
+        "range": "16 - 30 dias de atraso",
+        "label": "Atraso Moderado (16-30d)",
+        "bg_class": "bg-amber-500/15 text-amber-400 border-amber-500/30",
+        "hex": "#F59E0B"
+      },
+      "red": {
+        "range": "31 - 60 dias de atraso",
+        "label": "Atraso Crítico (31-60d)",
+        "bg_class": "bg-rose-500/15 text-rose-400 border-rose-500/30",
+        "hex": "#EF4444"
+      },
+      "purple": {
+        "range": "> 60 dias / Contencioso",
+        "label": "Contencioso / Jurídico (>60d)",
+        "bg_class": "bg-purple-500/15 text-purple-400 border-purple-500/30",
+        "hex": "#8B5CF6"
+      }
+    },
+    "surface": {
+      "dark_bg": "#0B0F17",
+      "dark_card": "#111827",
+      "dark_card_hover": "#1F2937",
+      "dark_border": "#1F2937"
+    }
+  },
+  "layout": {
+    "type": "Dashboard Grid + Sidebar Navigation",
+    "sidebar": "Collapsible sidebar with tenant branding switcher, quick stats, navigation menu, and user company profile",
+    "top_bar": "Includes active company branding pill, theme toggle, notification bell, global search for debtors/invoices, and user menu",
+    "content_spacing": "p-4 sm:p-6 lg:p-8 space-y-6"
+  },
+  "key_components": [
+    {
+      "name": "Dashboard Header & Company Branding Bar",
+      "description": "Exhibits selected tenant's logo, company name, NIF, and primary color picker for live application re-skinning."
+    },
+    {
+      "name": "Financial Overview Cards (KPIs)",
+      "description": "Displays Total em Dívida, Valor Recupedado, Dívida Crítica (>30d), Taxa de Sucesso de Cobrança with trend indicators."
+    },
+    {
+      "name": "Debtor Table (Lista de Devedores)",
+      "description": "Filterable and searchable list of pending debts with company/individual name, NIF, total owed, status badges (Green/Yellow/Red/Purple), and direct action trigger."
+    },
+    {
+      "name": "Ficha de Cobrança (Debtor Detail View)",
+      "description": "Deep-dive view showing debtor history, contacts, pending invoices, communication timeline log, and quick trigger action buttons for WhatsApp and Email."
+    },
+    {
+      "name": "WhatsApp & Email Message Preparation Modals",
+      "description": "Modal windows with smart template selector (1st Reminder, Formal Warning, Legal Pre-Notice), pre-filled text with dynamic tags ([Nome], [Valor], [Fatura], [IBAN]), copy-to-clipboard, and external action launcher."
+    },
+    {
+      "name": "Branding & Company Settings Page",
+      "description": "Form to upload/change logo URL, custom primary color hex, company payment details (IBAN, Multibanco Entity/Reference), and default reminder templates."
+    }
+  ],
+  "motion_and_interactions": {
+    "transitions": "transition-colors duration-200, transition-transform duration-200",
+    "hover_effects": "hover:scale-[1.01] hover:border-primary/50",
+    "modals": "framer-motion pop-in with backdrop blur",
+    "toasts": "sonner notifications for template copy, company settings saved, and message triggers"
+  },
+  "data_testid_convention": {
+    "pattern": "kebab-case describing function",
+    "required_test_ids": [
+      "company-switcher-dropdown",
+      "company-logo-img",
+      "company-primary-color-picker",
+      "dashboard-kpi-total-debt",
+      "dashboard-kpi-critical-debt",
+      "debtor-search-input",
+      "debtor-filter-badge",
+      "debtor-row-click",
+      "debtor-detail-whatsapp-btn",
+      "debtor-detail-email-btn",
+      "message-modal-textarea",
+      "message-modal-copy-btn",
+      "message-modal-launch-btn",
+      "branding-settings-save-btn"
+    ]
+  },
+  "instructions_to_main_agent": {
+    "step_1": "Configure index.css and tailwind setup to accept dynamic CSS variables or React context state for primary color theme.",
+    "step_2": "Build FastAPI backend endpoints for /api/companies, /api/companies/{id}/branding, /api/debtors, /api/debtors/{id}, /api/templates, and /api/stats.",
+    "step_3": "Build React Multi-company authentication / tenant switch state with local storage persistence.",
+    "step_4": "Implement Financial Dashboard with color-coded overdue aging badges (Verde: 1-15d, Amarelo: 16-30d, Vermelho: 31-60d, Roxo: >60d/Contencioso).",
+    "step_5": "Implement Ficha de Cobrança with detailed debtor data, history timeline, invoice items, and WhatsApp/Email modal triggers.",
+    "step_6": "Implement WhatsApp and Email pre-filled text modal windows with placeholder variable replacement ([Nome], [Valor], [Fatura], [IBAN], [Data Vencimento]).",
+    "step_7": "Ensure all key elements contain data-testid attributes according to standard convention.",
+    "step_8": "Test API endpoints and UI flow thoroughly."
+  }
+}

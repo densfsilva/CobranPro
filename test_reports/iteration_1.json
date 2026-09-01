@@ -1,0 +1,57 @@
+{
+  "summary": "Ronda 1 de testes completa (backend + frontend) da plataforma CobranPro. Backend: 35 testes pytest criados em /app/backend/tests (auth/login/lockout, registo+multi-tenancy, dashboard KPIs e buckets, CRUD de cobranças, branding, bcrypt, CORS) — 34 passam, 1 falha (lockout de brute force não dispara). Frontend: 4 scripts Playwright cobrindo login, KPIs (15 341,25€ / 640€ / 8510,75€ / 17%), gráfico de antiguidade, badges de cor por bucket, pesquisa por nome+fatura, filtros por bucket, ficha de cobrança, modais WhatsApp/Email com templates e IBAN, marcar como paga + atualização de KPIs, criar/eliminar cobrança, branding (cor #D97706 + logótipo + persistência após refresh), registo de nova empresa com login automático, isolamento multi-tenant e logout. Todos os fluxos pedidos funcionam; dados demo foram restaurados ao estado original no fim.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/auth/login", "issue": "Bloqueio por brute force nunca dispara em produção: o identificador é 'request.client.host:email' e atrás do ingress o IP visto pela app roda entre pods (observado em login_attempts: '10.208.134.66:...' count=3 e '10.208.134.70:...' count=3 para o mesmo email). 6 tentativas erradas consecutivas devolveram 401 (esperado 429 à 6ª). Usar apenas o email (ou X-Forwarded-For primeiro IP) como chave.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/auth/login", "issue": "locked_at é reescrito em cada falha ($set locked_at), pelo que a janela de 15 min é sempre reiniciada; deve ser gravado apenas quando count atinge 5."},
+      {"endpoint": "CORS (app-level)", "issue": "CORS_ORIGINS='*' com allow_credentials=True é uma combinação inválida para browsers (funciona hoje só porque a auth usa Bearer/localStorage). Definir origens explícitas."},
+      {"endpoint": "POST /api/auth/register, POST /api/charges", "issue": "Erros 422 do Pydantic são devolvidos em inglês e exibidos crus na UI PT-PT (ex.: 'value is not a valid email address: The part after the @-sign is a special-use or reserved name...'). Traduzir/normalizar mensagens de validação."},
+      {"endpoint": "PUT /api/charges/{id}", "issue": "Exige o corpo completo (ChargeInput) para alterar apenas o estado; um PATCH parcial seria mais robusto (qualquer campo omitido é sobrescrito com o default)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "MessageModal - botão Copiar", "issue": "navigator.clipboard.writeText() sem try/catch: quando a permissão de clipboard é negada/indisponível (contexto não-seguro, iframe sem permissão, browsers restritivos) a promessa rejeita sem tratamento e aparece o overlay 'Uncaught runtime errors: NotAllowedError: Failed to execute writeText on Clipboard' que cobre a app inteira e bloqueia todas as interações (o clique seguinte no botão Email ficou impossível). Com a permissão concedida o copiar funciona e o toast 'Mensagem copiada' aparece. Envolver em try/catch com fallback (textarea + execCommand) e toast.error.", "selector": "[data-testid=\"message-modal-copy-btn\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Nova Cobrança (ChargeFormDialog)", "issues": ["Campo 'Data de Vencimento' usa <input type=\"date\"> nativo (picker do browser) em vez do componente Calendar/Popover shadcn usado no resto da UI", "Não há validação de formato/limites (permite datas absurdas sem feedback)"]},
+      {"screen": "Dashboard KPIs", "issues": ["Formatação monetária inconsistente: 'Total em Dívida' mostra '15 341,25 €' (com separador de milhares) mas 'Dívida Crítica' mostra '8510,75 €' (sem separador) — comportamento pt-PT do Intl para 4 dígitos; forçar useGrouping: true"]},
+      {"screen": "Dashboard (gráfico)", "issues": ["Avisos recharts no console no 1º render: 'The width(-1) and height(-1) of chart should be greater than 0' (container sem minWidth/minHeight)"]},
+      {"screen": "Modais (MessageModal / ChargeFormDialog)", "issues": ["Aviso de acessibilidade: 'Missing Description or aria-describedby for DialogContent' — adicionar DialogDescription"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "MessageModal: envolver navigator.clipboard.writeText em try/catch com fallback e toast.error para evitar o overlay de runtime error que bloqueia a app",
+    "Backend login: usar o email (ou X-Forwarded-For) como chave de login_attempts para o lockout funcionar atrás do ingress; gravar locked_at só ao atingir 5 falhas",
+    "Definir CORS_ORIGINS explícito em vez de '*' (allow_credentials=True)",
+    "Traduzir/normalizar mensagens de erro 422 para PT-PT na UI",
+    "Substituir o input date nativo por Calendar shadcn no formulário de Nova Cobrança",
+    "Uniformizar a formatação de moeda (separador de milhares) nos KPIs"
+  ],
+  "critical_code_review_comments": [
+    "server.py: lockout de brute force depende de request.client.host que não é o IP do cliente atrás do ingress — bug de segurança funcional (feature inoperante).",
+    "server.py usa @app.on_event('startup'/'shutdown') (deprecado no FastAPI atual) — migrar para lifespan.",
+    "compute_aging usa date.today() do servidor sem timezone explícita; para PT/UTC pode originar diferenças de 1 dia nos buckets à meia-noite.",
+    "PUT /api/charges/{id} aceita o modelo completo sem partial update: o frontend tem de reenviar todo o objeto (risco de perda de campos se o modelo evoluir).",
+    "MessageModal: chamadas a APIs do browser (clipboard, window.open) sem tratamento de erro."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/conftest.py"
+  ],
+  "success_rate": {"backend": "97% (34/35)", "frontend": "92% (11/12 fluxos; falha apenas o botão Copiar sem permissão de clipboard)"},
+  "seed_data_creation": "Criadas empresas de teste TEST_co_*@example.com e qa.empresa.*@example.com (cada uma com 6 cobranças de exemplo) e cobranças TEST_* na empresa admin (todas eliminadas no fim). Dados demo da TechFlow verificados intactos: total 15 341,25 €, recuperado 640,00 €, crítica 8510,75 €, taxa 17%; cor #2563EB e logótipo vazio restaurados.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "denis.ferreira0909@gmail.com / Cobrancas2026! (válidas, login OK). /app/memory/test_credentials.md presente e correto.",
+  "context_for_next_testing_agent": "Suite pytest em /app/backend/tests (correr com 'cd /app/backend && python -m pytest tests/ -n 0' — usar -n 0 porque os testes de KPI dependem do estado partilhado da empresa admin). O teste TestAuth::test_brute_force_lockout_after_5_fails é a falha conhecida (lockout por IP+email atrás do ingress). Emails com domínio .test são rejeitados pelo EmailStr do Pydantic — usar example.com nos testes. No Playwright headless é necessário page.context.grant_permissions(['clipboard-write']) antes de clicar em message-modal-copy-btn, senão o overlay de erro do CRA cobre a app. Fluxos já validados: login/logout, KPIs, gráfico, badges, pesquisa, filtros, ficha, modais WhatsApp/Email + templates, marcar paga, criar/eliminar cobrança, branding (cor+logo+persistência), registo e multi-tenancy.",
+  "rca_of_the_issue": "1) Lockout: db.login_attempts é indexado por f'{request.client.host}:{email}'; no cluster o request.client.host é o IP do pod de ingress, que varia entre pedidos, dividindo o contador (observados 2 documentos com count=3 para o mesmo email) — o limiar de 5 nunca é atingido. 2) Overlay de erro: MessageModal.copy() faz 'await navigator.clipboard.writeText(text)' sem try/catch; quando o browser nega a permissão, a rejeição não tratada aciona o overlay de erros do react-dev-overlay que intercepta todos os eventos de ponteiro, bloqueando a UI."
+}
