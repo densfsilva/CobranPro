@@ -7,10 +7,6 @@ export const BUCKETS = {
   paga: { label: "Paga", cls: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30", hex: "#71717A" },
 };
 
-export function eur(v) {
-  return new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR", minimumGroupingDigits: 2 }).format(v || 0);
-}
-
 export function fmtDate(iso) {
   if (!iso) return "—";
   return new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-PT", {

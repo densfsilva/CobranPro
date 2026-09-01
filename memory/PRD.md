@@ -22,6 +22,13 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 2: Localização, White Label e Menu Lateral
+- Seletor de País (Portugal/Brasil) nas Configurações: moeda adapta-se automaticamente (€ pt-PT / R$ pt-BR) e o campo de identificação muda (NIF / CNPJ) em todo o app (`/app/frontend/src/lib/format.js`); backend aceita `country` em PUT /api/branding com validação PT/BR
+- Ecrã de Configurações unificado (rota /configuracoes): Localização + Identidade (logótipo upload base64, nome, NIF/CNPJ, IBAN/PIX) + Cor de Marca (color picker + presets) — a cor aplica-se a botões e menus de toda a app
+- Menu lateral com 4 links: Dashboard, Pendentes, Recebidos, Configurações
+- Novas páginas: Pendentes (lista de cobranças por liquidar, ordenada por dias de atraso) e Recebidos (histórico de cobranças pagas com total recuperado)
+- Rota antiga /branding redireciona para /configuracoes
+
 ### 2026-09-01 — MVP completo
 - Auth JWT (register/login/me) com lockout brute-force; admin seed: denis.ferreira0909@gmail.com
 - PUT /api/branding (cor, logótipo base64, NIF, IBAN)

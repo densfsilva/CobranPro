@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Plus, Search, TrendingUp, AlertTriangle, CheckCircle2, Banknote } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { api } from "@/lib/api";
-import { BUCKETS, eur, fmtDate } from "@/lib/badges";
+import { BUCKETS, fmtDate } from "@/lib/badges";
+import { money } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
 
@@ -73,7 +74,7 @@ export default function Dashboard() {
               <Icon size={16} className="text-brand" />
             </div>
             <p className="font-heading text-2xl font-bold mt-2 font-mono-num" data-testid={`${testid}-value`}>
-              {stats ? (suffix ? `${stats[key]}${suffix}` : eur(stats[key])) : "—"}
+              {stats ? (suffix ? `${stats[key]}${suffix}` : money(stats[key])) : "—"}
             </p>
           </div>
         ))}
@@ -149,7 +150,7 @@ export default function Dashboard() {
                     </td>
                     <td className="py-3 pr-3 font-mono-num text-xs">{c.invoice_number}</td>
                     <td className="py-3 pr-3 text-muted-foreground">{fmtDate(c.due_date)}</td>
-                    <td className="py-3 pr-3 text-right font-mono-num font-semibold">{eur(c.amount)}</td>
+                    <td className="py-3 pr-3 text-right font-mono-num font-semibold">{money(c.amount)}</td>
                     <td className="py-3 text-right">
                       <span data-testid={`debtor-badge-${c.id}`} className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${BUCKETS[c.bucket].cls}`}>
                         {c.status === "paga" ? "Paga" : c.bucket === "por_vencer" ? "Por Vencer" : `${c.days_overdue}d atraso`}

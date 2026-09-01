@@ -5,7 +5,9 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import AuthPage from "@/pages/AuthPage";
 import Dashboard from "@/pages/Dashboard";
 import ChargeDetail from "@/pages/ChargeDetail";
-import BrandingSettings from "@/pages/BrandingSettings";
+import PendingCharges from "@/pages/PendingCharges";
+import ReceivedHistory from "@/pages/ReceivedHistory";
+import Settings from "@/pages/Settings";
 import AppLayout from "@/components/AppLayout";
 
 function Protected({ children }) {
@@ -28,8 +30,11 @@ function App() {
         <Routes>
           <Route path="/login" element={<AuthPage />} />
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
+          <Route path="/pendentes" element={<Protected><PendingCharges /></Protected>} />
+          <Route path="/recebidos" element={<Protected><ReceivedHistory /></Protected>} />
           <Route path="/cobranca/:id" element={<Protected><ChargeDetail /></Protected>} />
-          <Route path="/branding" element={<Protected><BrandingSettings /></Protected>} />
+          <Route path="/configuracoes" element={<Protected><Settings /></Protected>} />
+          <Route path="/branding" element={<Navigate to="/configuracoes" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

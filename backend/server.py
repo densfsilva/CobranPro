@@ -61,6 +61,7 @@ def serialize_company(doc: dict) -> dict:
         "company_name": doc["company_name"],
         "nif": doc.get("nif", ""),
         "iban": doc.get("iban", ""),
+        "country": doc.get("country", "PT"),
         "primary_color": doc.get("primary_color", "#2563EB"),
         "logo_base64": doc.get("logo_base64", ""),
         "created_at": doc.get("created_at"),
@@ -122,6 +123,7 @@ class BrandingInput(BaseModel):
     company_name: Optional[str] = None
     nif: Optional[str] = None
     iban: Optional[str] = None
+    country: Optional[str] = None
     primary_color: Optional[str] = None
     logo_base64: Optional[str] = None
 
@@ -153,6 +155,7 @@ async def register(data: RegisterInput):
         "company_name": data.company_name.strip(),
         "nif": "",
         "iban": "",
+        "country": "PT",
         "primary_color": "#2563EB",
         "logo_base64": "",
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -198,6 +201,8 @@ async def me(company: dict = Depends(get_current_company)):
 @api_router.put("/branding")
 async def update_branding(data: BrandingInput, company: dict = Depends(get_current_company)):
     updates = {k: v for k, v in data.model_dump().items() if v is not None}
+    if "country" in updates and updates["country"] not in ("PT", "BR"):
+        raise HTTPException(status_code=400, detail="País inválido (PT ou BR)")
     if "primary_color" in updates:
         if not re.match(r"^#[0-9a-fA-F]{6}$", updates["primary_color"]):
             raise HTTPException(status_code=400, detail="Cor inválida. Use formato #RRGGBB")
@@ -339,6 +344,7 @@ async def startup():
                 "company_name": "TechFlow Solutions Lda",
                 "nif": "509876543",
                 "iban": "PT50 0010 0000 1234 5678 9017 5",
+                "country": "PT",
                 "primary_color": "#2563EB",
                 "logo_base64": "",
                 "created_at": datetime.now(timezone.utc).isoformat(),

@@ -3,7 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, MessageCircle, Mail, Phone, User, FileText, StickyNote, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
-import { BUCKETS, eur, fmtDate } from "@/lib/badges";
+import { BUCKETS, fmtDate } from "@/lib/badges";
+import { money, idLabel } from "@/lib/format";
 import MessageModal from "@/components/MessageModal";
 
 export default function ChargeDetail() {
@@ -91,7 +92,7 @@ export default function ChargeDetail() {
             {[
               ["Email", charge.debtor_email || "—"],
               ["Telemóvel", charge.debtor_phone || "—"],
-              ["NIF", charge.debtor_nif || "—"],
+              [idLabel(), charge.debtor_nif || "—"],
               ["Registada em", fmtDate(charge.created_at?.slice(0, 10))],
             ].map(([label, value]) => (
               <div key={label}>
@@ -111,7 +112,7 @@ export default function ChargeDetail() {
         <div className="space-y-4">
           <div className="bg-card border border-border rounded-xl p-6" data-testid="charge-amount-card">
             <p className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5"><FileText size={13} /> Valor em Dívida</p>
-            <p className="font-heading text-3xl font-extrabold font-mono-num mt-2" data-testid="charge-amount-value">{eur(charge.amount)}</p>
+            <p className="font-heading text-3xl font-extrabold font-mono-num mt-2" data-testid="charge-amount-value">{money(charge.amount)}</p>
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
               <Clock size={13} /> {pendente ? (charge.days_overdue > 0 ? `${charge.days_overdue} dias de atraso` : "Ainda dentro do prazo") : "Liquidada"}
             </p>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
+import { idLabel, idPlaceholder } from "@/lib/format";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved }) {
     ["due_date", "Data de Vencimento", "date", "", true],
     ["debtor_email", "Email do Devedor", "email", "devedor@email.pt", false],
     ["debtor_phone", "Telemóvel", "tel", "+351 9xx xxx xxx", false],
-    ["debtor_nif", "NIF", "text", "5xxxxxxxx", false],
+    ["debtor_nif", idLabel(), "text", idPlaceholder(), false],
   ];
 
   return (

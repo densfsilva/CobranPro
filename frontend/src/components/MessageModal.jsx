@@ -5,7 +5,8 @@ import { useAuth } from "@/context/AuthContext";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { eur, fmtDate } from "@/lib/badges";
+import { fmtDate } from "@/lib/badges";
+import { money } from "@/lib/format";
 
 const TEMPLATES = {
   lembrete: {
@@ -26,7 +27,7 @@ export function buildMessage(templateKey, charge, company) {
   return TEMPLATES[templateKey].text
     .replaceAll("[Nome]", charge.debtor_name)
     .replaceAll("[Fatura]", charge.invoice_number)
-    .replaceAll("[Valor]", eur(charge.amount))
+    .replaceAll("[Valor]", money(charge.amount))
     .replaceAll("[Data Vencimento]", fmtDate(charge.due_date))
     .replaceAll("[Dias]", String(charge.days_overdue))
     .replaceAll("[IBAN]", company.iban || "—")

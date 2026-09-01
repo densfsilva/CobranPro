@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import { setCountry } from "@/lib/format";
 
 const AuthContext = createContext(null);
 
@@ -21,6 +22,7 @@ export function AuthProvider({ children }) {
       .then(({ data }) => {
         setCompany(data);
         applyBrandColor(data.primary_color);
+        setCountry(data.country);
       })
       .catch(() => localStorage.removeItem("cobranpro_token"))
       .finally(() => setLoading(false));
@@ -30,17 +32,20 @@ export function AuthProvider({ children }) {
     localStorage.setItem("cobranpro_token", token);
     setCompany(companyData);
     applyBrandColor(companyData.primary_color);
+    setCountry(companyData.country);
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem("cobranpro_token");
     setCompany(null);
     applyBrandColor("#2563EB");
+    setCountry("PT");
   }, []);
 
   const updateCompany = useCallback((data) => {
     setCompany(data);
     applyBrandColor(data.primary_color);
+    setCountry(data.country);
   }, []);
 
   return (

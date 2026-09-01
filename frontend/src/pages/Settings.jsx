@@ -1,19 +1,26 @@
 import { useState, useRef } from "react";
 import { toast } from "sonner";
-import { Palette, Upload, Building2, Save } from "lucide-react";
+import { Palette, Upload, Building2, Save, Globe, Check } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { idLabel, idPlaceholder, bankLabel } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const PRESET_COLORS = ["#2563EB", "#D97706", "#059669", "#DC2626", "#7C3AED", "#0891B2", "#DB2777", "#65A30D"];
 
-export default function BrandingSettings() {
+const COUNTRIES = [
+  { code: "PT", name: "Portugal", desc: "Euro (€) · NIF" },
+  { code: "BR", name: "Brasil", desc: "Real (R$) · CNPJ" },
+];
+
+export default function Settings() {
   const { company, updateCompany } = useAuth();
   const [form, setForm] = useState({
     company_name: company.company_name,
     nif: company.nif || "",
     iban: company.iban || "",
+    country: company.country || "PT",
     primary_color: company.primary_color,
     logo_base64: company.logo_base64 || "",
   });
@@ -38,7 +45,7 @@ export default function BrandingSettings() {
     try {
       const { data } = await api.put("/branding", form);
       updateCompany(data);
-      toast.success("Configurações de branding guardadas");
+      toast.success("Configurações guardadas — a marca e a localização foram aplicadas a toda a app");
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
@@ -49,13 +56,42 @@ export default function BrandingSettings() {
   const initials = form.company_name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
   return (
-    <div className="max-w-3xl space-y-6" data-testid="branding-settings-page">
+    <div className="max-w-3xl space-y-6" data-testid="configuracoes-page">
       <div>
-        <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">Branding da Empresa</h1>
-        <p className="text-sm text-muted-foreground mt-1">Personalize o logótipo e a cor principal. As alterações aplicam-se imediatamente a toda a plataforma.</p>
+        <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight">Configurações</h1>
+        <p className="text-sm text-muted-foreground mt-1">Localização, identidade e marca da sua empresa.</p>
       </div>
 
       <form onSubmit={save} className="space-y-6">
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4" data-testid="settings-country-section">
+          <h2 className="font-heading text-lg font-semibold flex items-center gap-2"><Globe size={18} className="text-brand" /> Localização</h2>
+          <p className="text-xs text-muted-foreground">Ao mudar de país, a moeda e o campo de identificação fiscal adaptam-se automaticamente em toda a aplicação.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {COUNTRIES.map((c) => {
+              const active = form.country === c.code;
+              return (
+                <button
+                  key={c.code}
+                  type="button"
+                  data-testid={`settings-country-${c.code.toLowerCase()}`}
+                  onClick={() => setForm({ ...form, country: c.code })}
+                  className={`relative text-left p-4 rounded-xl border transition-all duration-200 hover:scale-[1.01] ${
+                    active ? "border-brand bg-brand-soft" : "border-border bg-background hover:border-muted-foreground/40"
+                  }`}
+                >
+                  {active && (
+                    <span className="absolute top-3 right-3 w-5 h-5 rounded-full bg-brand flex items-center justify-center" data-testid={`settings-country-${c.code.toLowerCase()}-check`}>
+                      <Check size={12} className="text-white" />
+                    </span>
+                  )}
+                  <p className="font-heading font-semibold">{c.name}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{c.desc}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="bg-card border border-border rounded-xl p-6 space-y-5" data-testid="branding-identity-section">
           <h2 className="font-heading text-lg font-semibold flex items-center gap-2"><Building2 size={18} className="text-brand" /> Identidade</h2>
           <div className="flex items-center gap-5">
@@ -84,20 +120,22 @@ export default function BrandingSettings() {
                 onChange={(e) => setForm({ ...form, company_name: e.target.value })} className="bg-background" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="nif">NIF</Label>
+              <Label htmlFor="nif" data-testid="branding-id-label">{idLabel(form.country)}</Label>
               <Input id="nif" data-testid="branding-nif-input" value={form.nif}
-                onChange={(e) => setForm({ ...form, nif: e.target.value })} placeholder="5xxxxxxxx" className="bg-background" />
+                onChange={(e) => setForm({ ...form, nif: e.target.value })} placeholder={idPlaceholder(form.country)} className="bg-background" />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="iban">IBAN (usado nas mensagens de lembrete)</Label>
+              <Label htmlFor="iban" data-testid="branding-bank-label">{bankLabel(form.country)}</Label>
               <Input id="iban" data-testid="branding-iban-input" value={form.iban}
-                onChange={(e) => setForm({ ...form, iban: e.target.value })} placeholder="PT50 .... .... .... .... ." className="bg-background font-mono-num" />
+                onChange={(e) => setForm({ ...form, iban: e.target.value })}
+                placeholder={form.country === "BR" ? "email@pix.com.br ou dados bancários" : "PT50 .... .... .... .... ."}
+                className="bg-background font-mono-num" />
             </div>
           </div>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6 space-y-4" data-testid="branding-color-section">
-          <h2 className="font-heading text-lg font-semibold flex items-center gap-2"><Palette size={18} className="text-brand" /> Cor Principal</h2>
+          <h2 className="font-heading text-lg font-semibold flex items-center gap-2"><Palette size={18} className="text-brand" /> Cor de Marca</h2>
           <div className="flex items-center gap-4 flex-wrap">
             <input
               type="color"
@@ -124,7 +162,7 @@ export default function BrandingSettings() {
             <div className="w-8 h-8 rounded-lg" style={{ backgroundColor: form.primary_color }} />
             <div>
               <p className="text-sm font-medium">Pré-visualização</p>
-              <p className="text-xs text-muted-foreground">Esta cor será aplicada a botões, links e destaques após guardar.</p>
+              <p className="text-xs text-muted-foreground">Esta cor passa a ser a cor principal dos botões e menus após guardar.</p>
             </div>
           </div>
         </div>

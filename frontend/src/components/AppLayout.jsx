@@ -1,10 +1,12 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Palette, LogOut, Wallet } from "lucide-react";
+import { LayoutDashboard, Clock, History, Settings, LogOut, Wallet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/branding", label: "Branding", icon: Palette },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
+  { to: "/pendentes", label: "Pendentes", icon: Clock, testid: "nav-pendentes" },
+  { to: "/recebidos", label: "Recebidos", icon: History, testid: "nav-recebidos" },
+  { to: "/configuracoes", label: "Configurações", icon: Settings, testid: "nav-configuracoes" },
 ];
 
 export default function AppLayout({ children }) {
@@ -36,13 +38,13 @@ export default function AppLayout({ children }) {
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {NAV.map(({ to, label, icon: Icon }) => {
+          {NAV.map(({ to, label, icon: Icon, testid }) => {
             const active = location.pathname === to;
             return (
               <Link
                 key={to}
                 to={to}
-                data-testid={`nav-${label.toLowerCase()}`}
+                data-testid={testid}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 ${
                   active ? "bg-brand-soft text-brand" : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                 }`}
