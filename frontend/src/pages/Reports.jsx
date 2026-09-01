@@ -3,6 +3,7 @@ import { Printer, FileBarChart, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { useAuth } from "@/context/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,7 +107,7 @@ export default function Reports() {
             <thead>
               <tr className="text-left text-xs text-muted-foreground uppercase tracking-wider border-b border-border">
                 <th className="pb-3 font-medium">Devedor</th>
-                <th className="pb-3 font-medium">Fatura</th>
+                <th className="pb-3 font-medium">{t("invoice")}</th>
                 <th className="pb-3 font-medium">Vencimento</th>
                 <th className="pb-3 font-medium text-right">Valor</th>
                 <th className="pb-3 font-medium text-right">Estado</th>
@@ -149,7 +150,7 @@ export default function Reports() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr>
-              {["Devedor", "Fatura", "Vencimento", "Valor", "Estado"].map((h) => (
+              {["Devedor", t("invoice"), "Vencimento", "Valor", "Estado"].map((h) => (
                 <th key={h} style={{ textAlign: h === "Valor" ? "right" : "left", borderBottom: "2px solid #0f172a", padding: "6px 8px" }}>{h}</th>
               ))}
             </tr>

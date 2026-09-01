@@ -22,6 +22,12 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 5: i18n PT/BR e revisão ortográfica
+- Dicionário dinâmico `/app/frontend/src/lib/i18n.js` (função `t()` + `invoiceWord()`): vocabulário muda com o País — PT: Factura/Utilizador/Ecrã/Telemóvel/NIF; BR: Fatura/Usuário/Tela/Celular/CNPJ. Aplicado a cabeçalhos de tabelas, placeholders de pesquisa, ficha de cobrança, formulário, mensagens WhatsApp/Email (inclui "o IBAN" ↔ "a chave PIX / dados bancários") e relatórios/print
+- Pluralização corrigida ("1 factura em negociação" vs "2 facturas")
+- Leitura de PDF confirma NIF (9 dígitos) e CNPJ (14 dígitos, com/sem pontuação) — testado com PDF BR: CNPJs 12.345.678/0001-90 e 98765432000155 detetados, valores R$ corretos
+- Confirmado: Aba Em Negociação, Promessa de Pagamento (alerta no Dashboard) e Timeline de Atividades já implementados e a funcionar com a linguagem correta
+
 ### 2026-09-01 — Iteração 4: Negociação avançada, Atividades, Importação PDF e Google Drive (estrutura)
 - Campos `promise_date` (Promessa de Pagamento) e `agreed_amount` (Valor Acordado) na cobrança; card "Negociação" na ficha (visível quando status = Em Negociação); colunas Promessa/Valor Acordado na página Em Negociação
 - Alerta de promessa falhada: se `promise_date` vencer sem baixa (status != paga), entra nos `followups` do GET /api/dashboard com kind="promessa" (banner âmbar no Dashboard)

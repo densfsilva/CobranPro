@@ -4,6 +4,7 @@ import { FileUp, Loader2, CheckCircle2 } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { money } from "@/lib/format";
 import { fmtDate } from "@/lib/badges";
+import { t, invoiceWord } from "@/lib/i18n";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function ImportPdfDialog({ onImported }) {
@@ -30,10 +31,10 @@ export default function ImportPdfDialog({ onImported }) {
       const { data } = await api.post("/charges/import-pdf", fd, { headers: { "Content-Type": "multipart/form-data" } });
       setResult(data);
       if (data.created_count > 0) {
-        toast.success(`${data.created_count} fatura(s) importada(s) com sucesso`);
+        toast.success(`${data.created_count} ${invoiceWord(data.created_count)} importada(s) com sucesso`);
         onImported?.();
       } else {
-        toast.warning("Nenhuma fatura identificada no PDF");
+        toast.warning(`Nenhuma ${t("invoiceLower")} identificada no PDF`);
       }
     } catch (err) {
       toast.error(formatApiError(err, "Não foi possível importar o PDF"));
@@ -59,7 +60,7 @@ export default function ImportPdfDialog({ onImported }) {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Carregue o relatório PDF do seu ERP. O sistema lê o ficheiro e cria automaticamente as faturas com <strong>Nome</strong>, <strong>NIF/CNPJ</strong>, <strong>Valor</strong> e <strong>Vencimento</strong>.
+              Carregue o relatório PDF do seu ERP. O sistema lê o ficheiro e cria automaticamente as {t("invoiceLowerPlural")} com <strong>Nome</strong>, <strong>{t("taxId")}</strong>, <strong>Valor</strong> e <strong>Vencimento</strong>.
             </p>
             <input ref={fileRef} type="file" accept=".pdf" data-testid="import-erp-file-input"
               className="w-full text-sm text-muted-foreground file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-brand file:text-white file:text-sm file:font-semibold hover:file:opacity-90 file:cursor-pointer" />
@@ -73,7 +74,7 @@ export default function ImportPdfDialog({ onImported }) {
               <div className="rounded-lg border border-border bg-background p-4 space-y-2" data-testid="import-erp-result">
                 <p className="text-sm font-semibold flex items-center gap-2">
                   <CheckCircle2 size={15} className="text-emerald-400" />
-                  {result.created_count} fatura(s) criada(s){result.skipped_count > 0 && ` · ${result.skipped_count} linha(s) ignorada(s)`}
+                  {result.created_count} {invoiceWord(result.created_count)} criada(s){result.skipped_count > 0 && ` · ${result.skipped_count} linha(s) ignorada(s)`}
                 </p>
                 <div className="max-h-44 overflow-y-auto space-y-1">
                   {result.created.map((c) => (

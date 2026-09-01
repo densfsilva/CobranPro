@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money, idLabel } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import MessageModal from "@/components/MessageModal";
 import ChargeTimeline from "@/components/ChargeTimeline";
 import ChargeDocuments from "@/components/ChargeDocuments";
@@ -71,7 +72,7 @@ export default function ChargeDetail() {
             <span data-testid="charge-status-badge" className={`px-3 py-1 rounded-full text-xs font-medium border ${badge.cls}`}>{badge.label}</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Fatura <span className="font-mono-num">{charge.invoice_number}</span> · vencida a {fmtDate(charge.due_date)}
+            {t("invoice")} <span className="font-mono-num">{charge.invoice_number}</span> · vencida a {fmtDate(charge.due_date)}
             {pendente && charge.days_overdue > 0 && <> · <span className="text-rose-400 font-medium">{charge.days_overdue} dias em atraso</span></>}
           </p>
         </div>
@@ -113,7 +114,7 @@ export default function ChargeDetail() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
             {[
               ["Email", charge.debtor_email || "—"],
-              ["Telemóvel", charge.debtor_phone || "—"],
+              [t("mobile"), charge.debtor_phone || "—"],
               [idLabel(), charge.debtor_nif || "—"],
               ["Registada em", fmtDate(charge.created_at?.slice(0, 10))],
             ].map(([label, value]) => (

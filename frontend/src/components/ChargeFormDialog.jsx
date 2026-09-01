@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { idLabel, idPlaceholder } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,11 +38,11 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved }) {
 
   const fields = [
     ["debtor_name", "Nome do Devedor", "text", "Ex: Marta Sousa", true],
-    ["invoice_number", "Nº Fatura", "text", "FT-2026/001", true],
+    ["invoice_number", `Nº ${t("invoice")}`, "text", "FT-2026/001", true],
     ["amount", "Valor (€)", "number", "0.00", true],
     ["due_date", "Data de Vencimento", "date", "", true],
     ["debtor_email", "Email do Devedor", "email", "devedor@email.pt", false],
-    ["debtor_phone", "Telemóvel", "tel", "+351 9xx xxx xxx", false],
+    ["debtor_phone", t("mobile"), "tel", "+351 9xx xxx xxx", false],
     ["debtor_nif", idLabel(), "text", idPlaceholder(), false],
   ];
 

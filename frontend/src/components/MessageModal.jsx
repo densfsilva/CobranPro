@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
+import { t } from "@/lib/i18n";
 
 const TEMPLATES = {
   lembrete: {
@@ -31,7 +32,9 @@ export function buildMessage(templateKey, charge, company) {
     .replaceAll("[Data Vencimento]", fmtDate(charge.due_date))
     .replaceAll("[Dias]", String(charge.days_overdue))
     .replaceAll("[IBAN]", company.iban || "—")
-    .replaceAll("[Empresa]", company.company_name);
+    .replaceAll("[Empresa]", company.company_name)
+    .replaceAll("fatura", t("invoiceLower"))
+    .replaceAll("o IBAN", t("bankRef"));
 }
 
 export default function MessageModal({ channel, charge, open, onOpenChange }) {
@@ -79,7 +82,7 @@ export default function MessageModal({ channel, charge, open, onOpenChange }) {
       const phone = (charge.debtor_phone || "").replace(/[^\d]/g, "");
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank");
     } else {
-      const subject = `Lembrete de pagamento — Fatura ${charge.invoice_number}`;
+      const subject = `Lembrete de pagamento — ${t("invoice")} ${charge.invoice_number}`;
       window.open(`mailto:${charge.debtor_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`, "_blank");
     }
     toast.info(isWhatsApp ? "A abrir o WhatsApp..." : "A abrir o cliente de email...");

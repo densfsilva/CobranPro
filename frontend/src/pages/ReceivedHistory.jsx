@@ -4,6 +4,7 @@ import { Search, History } from "lucide-react";
 import { api } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 
 export default function ReceivedHistory() {
@@ -44,7 +45,7 @@ export default function ReceivedHistory() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pesquisar devedor ou fatura..."
+            placeholder={`Pesquisar devedor ou ${t("invoiceLower")}...`}
             data-testid="recebidos-search-input"
             className="pl-9 bg-background"
           />
@@ -54,7 +55,7 @@ export default function ReceivedHistory() {
             <thead>
               <tr className="text-left text-xs text-muted-foreground uppercase tracking-wider border-b border-border">
                 <th className="pb-3 font-medium">Devedor</th>
-                <th className="pb-3 font-medium">Fatura</th>
+                <th className="pb-3 font-medium">{t("invoice")}</th>
                 <th className="pb-3 font-medium">Vencimento</th>
                 <th className="pb-3 font-medium text-right">Valor</th>
                 <th className="pb-3 font-medium text-right">Estado</th>

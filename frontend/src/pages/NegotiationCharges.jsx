@@ -4,6 +4,7 @@ import { Search, Handshake } from "lucide-react";
 import { api } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
+import { t, invoiceWord } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 
 export default function NegotiationCharges() {
@@ -33,10 +34,10 @@ export default function NegotiationCharges() {
           <Handshake size={28} className="text-orange-400" /> Em Negociação
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          <span className="font-mono-num font-semibold text-foreground" data-testid="negociacao-count">{negociacao.length}</span> faturas em negociação ·{" "}
+          <span className="font-mono-num font-semibold text-foreground" data-testid="negociacao-count">{negociacao.length}</span> {invoiceWord(negociacao.length)} em negociação ·{" "}
           <span className="font-mono-num font-semibold text-orange-400" data-testid="negociacao-total">{money(total)}</span> em acordo
         </p>
-        <p className="text-xs text-muted-foreground mt-1">Estas faturas estão fora do fluxo de cobrança ativa — sem lembretes automáticos enquanto durar a negociação.</p>
+        <p className="text-xs text-muted-foreground mt-1">Estas {t("invoiceLowerPlural")} estão fora do fluxo de cobrança ativa — sem lembretes automáticos enquanto durar a negociação.</p>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">
@@ -45,7 +46,7 @@ export default function NegotiationCharges() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Pesquisar devedor ou fatura..."
+            placeholder={`Pesquisar devedor ou ${t("invoiceLower")}...`}
             data-testid="negociacao-search-input"
             className="pl-9 bg-background"
           />
@@ -55,7 +56,7 @@ export default function NegotiationCharges() {
             <thead>
               <tr className="text-left text-xs text-muted-foreground uppercase tracking-wider border-b border-border">
                 <th className="pb-3 font-medium">Devedor</th>
-                <th className="pb-3 font-medium">Fatura</th>
+                <th className="pb-3 font-medium">{t("invoice")}</th>
                 <th className="pb-3 font-medium">Vencimento</th>
                 <th className="pb-3 font-medium">Promessa Pag.</th>
                 <th className="pb-3 font-medium text-right">Valor</th>
@@ -97,7 +98,7 @@ export default function NegotiationCharges() {
                 </tr>
               ))}
               {negociacao.length === 0 && (
-                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="negociacao-empty-state">Nenhuma fatura em negociação. Use o botão "Em Negociação" na ficha de uma cobrança.</td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="negociacao-empty-state">Nenhuma {t("invoiceLower")} em negociação. Use o botão "Em Negociação" na ficha de uma cobrança.</td></tr>
               )}
             </tbody>
           </table>
