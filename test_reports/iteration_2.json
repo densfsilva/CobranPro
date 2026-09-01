@@ -1,0 +1,38 @@
+{
+  "summary": "Ronda 2 — frontend only, focada no bug de removeChild no fluxo 'Importar Relatório ERP'. Executados 2 scripts Playwright (empresa de teste import.teste@example.com em /pendentes e admin demo no /dashboard) com captura de console + pageerror. RESULTADO: o bug reportado NÃO se reproduz — 0 erros de consola e 0 pageerrors na empresa de teste durante login → Pendentes → import #1 (3 faturas, resumo visível com 3 itens) → Escape → tabela atualizada com Fernando Almeida FT-2026/077, Restaurante Mar Sul FT-2026/078, Transportes Leziria FT-2026/079 → import #2 do MESMO PDF sem recarregar (OK, resumo novo, sem removeChild) → Escape + reabrir dialog (limpo, sem resultado antigo) → página estável (root com 2 filhos, sem overlay de runtime error). Nenhuma ocorrência de 'removeChild', 'NotFoundError', 'insertBefore' ou 'Failed to execute'. Regressão do dashboard admin: KPIs corretos (15 341,25 € / 640,00 € / 8510,75 € / 14%), gráfico e tabela (8 linhas) renderizam, import a partir do Dashboard funciona (3 faturas, KPI passou a 20 222,00 € = +4880,75 €) e a página mantém-se estável. Dados demo restaurados: as 3 cobranças criadas no admin foram apagadas via DELETE /api/charges/{id} (KPIs de volta a 15 341,25 €). ÚNICO defeito encontrado: erro React 'Encountered two children with the same key' no Dashboard (3 ocorrências) — causado pelos followups do mesmo charge id.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/charges/import-pdf", "issue": "Não há deduplicação: importar o mesmo PDF repetidamente cria faturas duplicadas com o mesmo invoice_number (aceite pelo pedido, mas convém skipped por invoice_number já existente)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Dashboard.jsx (lista de follow-ups)", "issue": "Erro de consola React: 'Encountered two children with the same key'. GET /api/dashboard devolve 2 followups com o MESMO id (89d204b0-... 'contacto' e 'promessa' do charge FT-2026/015) e o render usa key={f.id} (linha 77). Chaves duplicadas são precisamente a causa clássica de NotFoundError/removeChild em remoções/reordenações — deve ser corrigido para key={`${f.id}-${f.kind}-${f.date}`} (ou o backend devolver um id único por alerta).", "selector": "[data-testid^=\"followup-item-\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (gráfico recharts)", "issues": ["Aviso repetido no 1º render: 'The width(-1) and height(-1) of chart should be greater than 0' — container sem minWidth/minHeight (já reportado na ronda 1, não corrigido)"]},
+      {"screen": "Dashboard KPIs", "issues": ["Formatação de moeda inconsistente: '15 341,25 €' com separador vs '8510,75 €' sem separador (já reportado na ronda 1, não corrigido)"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Dashboard.jsx L77: usar key composta nos follow-ups (`${f.id}-${f.kind}-${f.date}`) — chaves duplicadas são a causa provável residual do removeChild/NotFoundError",
+    "Opcional: recharts container com minWidth/minHeight e uniformizar formatação de moeda (pendentes da ronda 1)",
+    "Opcional: import-pdf devolver linhas como 'skipped' quando invoice_number já existe na empresa"
+  ],
+  "critical_code_review_comments": [
+    "ImportPdfDialog: a correção (setResult antes de onImported + setTimeout 50ms + spans a envolver nós de texto misto + translate=no no <html>) resolve o sintoma; o setTimeout é frágil como padrão — preferível chamar onImported() dentro de um efeito/após o commit do render ou apenas ao fechar o dialog.",
+    "Dashboard: chaves React não únicas na lista de follow-ups (bug real, ver ui_bugs).",
+    "Fluxo de import não valida o tipo/dimensão do ficheiro no cliente (apenas accept='.pdf')."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "não testado nesta ronda (frontend only)", "frontend": "100% dos 5 cenários pedidos passaram (bug removeChild não reproduzível); 1 defeito colateral encontrado no Dashboard"},
+  "seed_data_creation": "6 cobranças criadas na empresa de teste import.teste@example.com (2 imports do mesmo PDF) — mantidas, é empresa de teste. 3 cobranças criadas na empresa demo (import a partir do Dashboard) foram APAGADAS via API; KPIs demo confirmados de volta a 15 341,25 €.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "import.teste@example.com / teste123456 (OK) e denis.ferreira0909@gmail.com / Cobrancas2026! (OK). NOTA: a conta import.teste@example.com NÃO está documentada em /app/memory/test_credentials.md — adicionar.",
+  "context_for_next_testing_agent": "Fluxo de import ERP validado end-to-end no browser (2 imports consecutivos, Escape/reabertura, admin e empresa de teste) sem qualquer erro de consola. Para reproduzir: login → /pendentes → import-erp-btn → set_input_files('/tmp/erp_test.pdf') → import-erp-submit → esperar import-erp-result. A empresa import.teste tem agora 16 cobranças pendentes com duplicados esperados. Único item aberto no frontend: chave React duplicada nos follow-ups do Dashboard (visível apenas na empresa demo, que tem 2 alertas para o charge FT-2026/015).",
+  "rca_of_the_issue": "O removeChild/NotFoundError reportado pelo utilizador não se reproduz após as correções (translate=no no <html> + nós de texto misto encapsulados em <span> + setResult antes do refresh da lista com adiamento de 50ms): a tradução automática do browser substitui nós de texto, e quando o React tenta remover um nó que já não é filho do pai original lança NotFoundError. Persiste, porém, um segundo vetor real para o mesmo tipo de crash: o Dashboard renderiza dois follow-ups com a mesma key React (o backend devolve o charge id como id do alerta), o que faz o React reconciliar/remover nós errados em atualizações da lista."
+}

@@ -99,8 +99,9 @@ export default function Reports() {
 
       <div className="bg-card border border-border rounded-xl p-5" data-testid="report-results">
         <p className="text-sm text-muted-foreground mb-4">
-          <span className="font-mono-num font-semibold text-foreground" data-testid="report-count">{filtered.length}</span> registos ·{" "}
-          total <span className="font-mono-num font-semibold text-foreground" data-testid="report-total">{money(total)}</span>
+          <span className="font-mono-num font-semibold text-foreground" data-testid="report-count">{filtered.length}</span>
+          <span> registos · total </span>
+          <span className="font-mono-num font-semibold text-foreground" data-testid="report-total">{money(total)}</span>
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm" data-testid="report-results-table">

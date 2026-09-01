@@ -74,7 +74,7 @@ export default function Dashboard() {
           <div className="flex flex-wrap gap-2">
             {stats.followups.map((f) => (
               <button
-                key={f.id}
+                key={`${f.id}-${f.kind}-${f.date}`}
                 onClick={() => navigate(`/cobranca/${f.id}`)}
                 data-testid={`followup-item-${f.id}`}
                 className="px-3 py-1.5 rounded-lg bg-background/60 border border-amber-500/30 text-xs hover:border-amber-400 hover:scale-[1.02] transition-all duration-200"

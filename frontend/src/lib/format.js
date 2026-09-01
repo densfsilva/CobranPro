@@ -9,7 +9,7 @@ export function getCountry() {
 }
 
 export function money(v) {
-  const opts = { style: "currency", minimumGroupingDigits: 2 };
+  const opts = { style: "currency", useGrouping: "always" };
   return country === "BR"
     ? new Intl.NumberFormat("pt-BR", { ...opts, currency: "BRL" }).format(v || 0)
     : new Intl.NumberFormat("pt-PT", { ...opts, currency: "EUR" }).format(v || 0);

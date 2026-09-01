@@ -43,8 +43,10 @@ export default function PendingCharges() {
             <Clock size={28} className="text-brand" /> Cobranças Pendentes
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            <span className="font-mono-num font-semibold text-foreground" data-testid="pendentes-count">{pendentes.length}</span> cobranças por liquidar ·{" "}
-            <span className="font-mono-num font-semibold text-foreground" data-testid="pendentes-total">{money(total)}</span> em dívida
+            <span className="font-mono-num font-semibold text-foreground" data-testid="pendentes-count">{pendentes.length}</span>
+            <span>{` ${t("invoiceLower") === "factura" ? "cobranças" : "cobranças"} por liquidar · `}</span>
+            <span className="font-mono-num font-semibold text-foreground" data-testid="pendentes-total">{money(total)}</span>
+            <span> em dívida</span>
           </p>
         </div>
         {isAdmin && (

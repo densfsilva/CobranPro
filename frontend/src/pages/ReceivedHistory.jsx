@@ -34,8 +34,10 @@ export default function ReceivedHistory() {
           <History size={28} className="text-brand" /> Histórico de Recebidos
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          <span className="font-mono-num font-semibold text-foreground" data-testid="recebidos-count">{recebidos.length}</span> cobranças liquidadas ·{" "}
-          <span className="font-mono-num font-semibold text-emerald-400" data-testid="recebidos-total">{money(total)}</span> recuperados
+          <span className="font-mono-num font-semibold text-foreground" data-testid="recebidos-count">{recebidos.length}</span>
+          <span> cobranças liquidadas · </span>
+          <span className="font-mono-num font-semibold text-emerald-400" data-testid="recebidos-total">{money(total)}</span>
+          <span> recuperados</span>
         </p>
       </div>
 

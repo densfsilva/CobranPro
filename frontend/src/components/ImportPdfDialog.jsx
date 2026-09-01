@@ -12,10 +12,17 @@ export default function ImportPdfDialog({ onImported }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const fileRef = useRef(null);
+  const importedRef = useRef(false);
 
   const close = (v) => {
     setOpen(v);
-    if (!v) setResult(null);
+    if (!v) {
+      setResult(null);
+      if (importedRef.current) {
+        importedRef.current = false;
+        onImported?.();
+      }
+    }
   };
 
   const submit = async () => {
@@ -32,7 +39,7 @@ export default function ImportPdfDialog({ onImported }) {
       setResult(data);
       if (data.created_count > 0) {
         toast.success(`${data.created_count} ${invoiceWord(data.created_count)} importada(s) com sucesso`);
-        onImported?.();
+        importedRef.current = true;
       } else {
         toast.warning(`Nenhuma ${t("invoiceLower")} identificada no PDF`);
       }
@@ -77,9 +84,10 @@ export default function ImportPdfDialog({ onImported }) {
                   {result.created_count} {invoiceWord(result.created_count)} criada(s){result.skipped_count > 0 && ` · ${result.skipped_count} linha(s) ignorada(s)`}
                 </p>
                 <div className="max-h-44 overflow-y-auto space-y-1">
-                  {result.created.map((c) => (
+                  {(result.created || []).map((c) => (
                     <p key={c.id} className="text-xs text-muted-foreground" data-testid={`import-erp-item-${c.id}`}>
-                      <span className="text-foreground font-medium">{c.debtor_name}</span> · {c.debtor_nif} · {c.invoice_number} · {money(c.amount)} · venc. {fmtDate(c.due_date)}
+                      <span className="text-foreground font-medium">{c.debtor_name}</span>
+                      <span>{` · ${c.debtor_nif} · ${c.invoice_number} · ${money(c.amount)} · venc. ${fmtDate(c.due_date)}`}</span>
                     </p>
                   ))}
                 </div>

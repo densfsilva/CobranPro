@@ -22,6 +22,14 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 7: Fix do erro 'removeChild' no Importar PDF
+- Causa raiz: auto-tradução do browser muta nós de texto → React falha ao removê-los. Fix: `<html lang="pt" class="notranslate" translate="no">` + meta google notranslate em public/index.html; nós de texto mistos (texto + expressões) encapsulados em <span> nas páginas Pendentes/Negociação/Recebidos/Relatórios e no resultado do import
+- ImportPdfDialog: atualização da lista da página pai passou a acontecer ao FECHAR o dialog (importedRef), eliminando a condição de corrida entre o render do resultado e o refresh da lista; render defensivo com (result.created || [])
+- Dashboard: fix de chaves React duplicadas nos alertas de follow-up (mesma cobrança pode gerar alerta 'contacto' + 'promessa') — key composta `${id}-${kind}-${date}` (vetor residual de removeChild identificado pelo agente de testes)
+- Import PDF: deduplicação por invoice_number — reimportar o mesmo PDF devolve as linhas como ignoradas "(já existe)" em vez de criar duplicados
+- Moeda: useGrouping "always" (agrupamento consistente em valores de 4 dígitos: "8 510,75 €")
+- Verificação: testing_agent confirmou 0 erros de consola/pageerror em 2 imports consecutivos + Escape/reabertura + regressão do Dashboard; 35/35 pytest
+
 ### 2026-09-01 — Iteração 6: RBAC, Gestão de Equipa e Perfil
 - Nova coleção `users` separada de `companies`: cada empresa tem múltiplos utilizadores com email+senha próprios (bcrypt); migração automática no startup (empresas antigas com password_hash → utilizador admin)
 - RBAC com 2 níveis: Administrador (acesso total) e Cobrador (lista pendentes + regista atividades); role re-lido da BD a cada pedido (`require_admin` dependency) — cobrador recebe 403 em Dashboard, Relatórios, Configurações, Equipa, criar/editar/apagar cobranças, importar PDF e apagar documentos

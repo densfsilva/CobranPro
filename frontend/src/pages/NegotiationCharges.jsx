@@ -34,10 +34,12 @@ export default function NegotiationCharges() {
           <Handshake size={28} className="text-orange-400" /> Em Negociação
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          <span className="font-mono-num font-semibold text-foreground" data-testid="negociacao-count">{negociacao.length}</span> {invoiceWord(negociacao.length)} em negociação ·{" "}
-          <span className="font-mono-num font-semibold text-orange-400" data-testid="negociacao-total">{money(total)}</span> em acordo
+          <span className="font-mono-num font-semibold text-foreground" data-testid="negociacao-count">{negociacao.length}</span>
+          <span>{` ${invoiceWord(negociacao.length)} em negociação · `}</span>
+          <span className="font-mono-num font-semibold text-orange-400" data-testid="negociacao-total">{money(total)}</span>
+          <span> em acordo</span>
         </p>
-        <p className="text-xs text-muted-foreground mt-1">Estas {t("invoiceLowerPlural")} estão fora do fluxo de cobrança ativa — sem lembretes automáticos enquanto durar a negociação.</p>
+        <p className="text-xs text-muted-foreground mt-1"><span>Estas </span><span>{t("invoiceLowerPlural")}</span><span> estão fora do fluxo de cobrança ativa — sem lembretes automáticos enquanto durar a negociação.</span></p>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">

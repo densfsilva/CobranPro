@@ -570,6 +570,10 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
         raise HTTPException(status_code=400, detail="Não foi possível ler o PDF")
 
     created, skipped = [], []
+    existing_invoices = {
+        c["invoice_number"] async for c in db.charges.find({"company_id": company["id"]}, {"_id": 0, "invoice_number": 1})
+    }
+    seen_in_batch = set()
     for line in lines:
         line = line.strip()
         if len(line) < 10:
@@ -606,6 +610,11 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
         if len(name) < 3:
             skipped.append(line[:80])
             continue
+        invoice_number = (inv_m.group(0) if inv_m else f"IMP-{len(created) + 1:03d}").upper().replace(" ", "")
+        if invoice_number in existing_invoices or invoice_number in seen_in_batch:
+            skipped.append(f"{line[:60]} (já existe)")
+            continue
+        seen_in_batch.add(invoice_number)
         charge = {
             "id": str(uuid.uuid4()),
             "company_id": company["id"],
@@ -613,7 +622,7 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
             "debtor_email": "",
             "debtor_phone": "",
             "debtor_nif": nif_m.group(0),
-            "invoice_number": (inv_m.group(0) if inv_m else f"IMP-{len(created) + 1:03d}").upper().replace(" ", ""),
+            "invoice_number": invoice_number,
             "amount": round(amount, 2),
             "due_date": due,
             "status": "pendente",
