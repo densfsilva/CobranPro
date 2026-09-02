@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, TrendingUp, AlertTriangle, CheckCircle2, Banknote, PhoneCall, MessageCircle, Mail, StickyNote } from "lucide-react";
+import { Plus, Search, TrendingUp, AlertTriangle, CheckCircle2, Banknote, PhoneCall, MessageCircle, Mail, StickyNote, Printer } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import { api } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
 import ImportPdfDialog from "@/components/ImportPdfDialog";
 import WhatsAppQuickButton from "@/components/WhatsAppQuickButton";
+import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
 
 const KPI_CONFIG = [
   { key: "total_debt", label: "Total em Dívida", icon: Banknote, testid: "dashboard-kpi-total-debt" },
@@ -80,6 +81,13 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground mt-1">Visão geral das suas cobranças e antiguidade da dívida.</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => window.print()}
+            data-testid="dashboard-print-btn"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-brand/50 hover:bg-brand-soft transition-all duration-200"
+          >
+            <Printer size={16} /> Gerar Relatório PDF
+          </button>
           <ImportPdfDialog onImported={load} />
           <button
             onClick={() => setFormOpen(true)}
@@ -248,6 +256,43 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      <PrintReport title="Resumo Executivo — Dashboard Financeiro" testid="print-report-dashboard">
+        {stats && (
+          <>
+            <table style={{ ...printTableStyle, marginBottom: 20 }}>
+              <tbody>
+                <tr>
+                  <td style={printTdStyle}>Total em Dívida</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(stats.total_debt)}</td>
+                  <td style={printTdStyle}>Valor Recuperado</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(stats.recovered)}</td>
+                </tr>
+                <tr>
+                  <td style={printTdStyle}>Dívida Crítica (&gt;30d)</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(stats.critical_debt)}</td>
+                  <td style={printTdStyle}>Taxa de Sucesso</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{stats.success_rate}%</td>
+                </tr>
+                <tr>
+                  <td style={printTdStyle}>Cobranças Pendentes</td><td style={{ ...printTdStyle, textAlign: "right" }}>{stats.pending_count}</td>
+                  <td style={printTdStyle}>Em Negociação</td><td style={{ ...printTdStyle, textAlign: "right" }}>{stats.negotiation_count} ({money(stats.negotiation_amount)})</td>
+                </tr>
+              </tbody>
+            </table>
+            <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>Antiguidade da Dívida Pendente</p>
+            <table style={printTableStyle}>
+              <tbody>
+                {["verde", "amarelo", "vermelho", "roxo"].map((b) => (
+                  <tr key={b}>
+                    <td style={{ ...printTdStyle, width: 24 }}>
+                      <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 3, background: BUCKETS[b].hex }} />
+                    </td>
+                    <td style={printTdStyle}>{BUCKETS[b].label}</td>
+                    <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 700 }}>{stats.buckets[b] || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </PrintReport>
 
       <ChargeFormDialog open={formOpen} onOpenChange={setFormOpen} onSaved={load} />
     </div>

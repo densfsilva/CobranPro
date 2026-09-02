@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Handshake } from "lucide-react";
+import { Search, Handshake, Printer } from "lucide-react";
 import { api } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t, invoiceWord } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
+import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
 
 export default function NegotiationCharges() {
   const [charges, setCharges] = useState([]);
@@ -29,10 +30,11 @@ export default function NegotiationCharges() {
 
   return (
     <div className="space-y-6" data-testid="negociacao-page">
-      <div>
-        <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3">
-          <Handshake size={28} className="text-orange-400" /> Em Negociação
-        </h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3">
+            <Handshake size={28} className="text-orange-400" /> Em Negociação
+          </h1>
         <p className="text-sm text-muted-foreground mt-1">
           <span className="font-mono-num font-semibold text-foreground" data-testid="negociacao-count">{negociacao.length}</span>
           <span>{` ${invoiceWord(negociacao.length)} em negociação · `}</span>
@@ -40,6 +42,14 @@ export default function NegotiationCharges() {
           <span> em acordo</span>
         </p>
         <p className="text-xs text-muted-foreground mt-1"><span>Estas </span><span>{t("invoiceLowerPlural")}</span><span> estão fora do fluxo de cobrança ativa — sem lembretes automáticos enquanto durar a negociação.</span></p>
+        </div>
+        <button
+          onClick={() => window.print()}
+          data-testid="negociacao-print-btn"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-brand/50 hover:bg-brand-soft transition-all duration-200"
+        >
+          <Printer size={16} /> Gerar Relatório PDF
+        </button>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">
@@ -106,6 +116,32 @@ export default function NegotiationCharges() {
           </table>
         </div>
       </div>
+      <PrintReport title="Relatório de Negociações — Promessas de Pagamento" subtitle={search ? `Filtro: "${search}"` : "Todas as faturas em negociação"} testid="print-report-negociacao">
+        <table style={printTableStyle}>
+          <thead>
+            <tr>{["Cliente", t("invoice"), "Valor", "Valor Acordado", "Promessa de Pagamento", "Observações"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {negociacao.map((c) => (
+              <tr key={c.id}>
+                <td style={printTdStyle}>{c.debtor_name}</td>
+                <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{c.invoice_number}</td>
+                <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{money(c.amount)}</td>
+                <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{c.agreed_amount != null ? money(c.agreed_amount) : "—"}</td>
+                <td style={printTdStyle}>{c.promise_date ? fmtDate(c.promise_date) : "—"}</td>
+                <td style={{ ...printTdStyle, fontSize: 11 }}>{c.notes || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={2} style={{ ...printTdStyle, fontWeight: 700 }}>Total em negociação ({negociacao.length})</td>
+              <td style={{ ...printTdStyle, fontWeight: 800, fontFamily: "monospace" }}>{money(total)}</td>
+              <td colSpan={3} style={printTdStyle} />
+            </tr>
+          </tfoot>
+        </table>
+      </PrintReport>
     </div>
   );
 }

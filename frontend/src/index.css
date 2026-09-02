@@ -62,7 +62,7 @@
     }
 }
 
-#print-report {
+.print-report {
     display: none;
 }
 
@@ -70,10 +70,10 @@
     body * {
         visibility: hidden;
     }
-    #print-report, #print-report * {
+    .print-report.print-active, .print-report.print-active * {
         visibility: visible;
     }
-    #print-report {
+    .print-report.print-active {
         display: block;
         position: absolute;
         left: 0;

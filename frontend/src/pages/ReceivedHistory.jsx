@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, History } from "lucide-react";
+import { Search, History, Printer } from "lucide-react";
 import { api } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
+import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
 
 export default function ReceivedHistory() {
   const [charges, setCharges] = useState([]);
@@ -29,16 +30,25 @@ export default function ReceivedHistory() {
 
   return (
     <div className="space-y-6" data-testid="recebidos-page">
-      <div>
-        <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3">
-          <History size={28} className="text-brand" /> Histórico de Recebidos
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          <span className="font-mono-num font-semibold text-foreground" data-testid="recebidos-count">{recebidos.length}</span>
-          <span> cobranças liquidadas · </span>
-          <span className="font-mono-num font-semibold text-emerald-400" data-testid="recebidos-total">{money(total)}</span>
-          <span> recuperados</span>
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight flex items-center gap-3">
+            <History size={28} className="text-brand" /> Histórico de Recebidos
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            <span className="font-mono-num font-semibold text-foreground" data-testid="recebidos-count">{recebidos.length}</span>
+            <span> cobranças liquidadas · </span>
+            <span className="font-mono-num font-semibold text-emerald-400" data-testid="recebidos-total">{money(total)}</span>
+            <span> recuperados</span>
+          </p>
+        </div>
+        <button
+          onClick={() => window.print()}
+          data-testid="recebidos-print-btn"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-brand/50 hover:bg-brand-soft transition-all duration-200"
+        >
+          <Printer size={16} /> Gerar Relatório PDF
+        </button>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">
@@ -92,6 +102,31 @@ export default function ReceivedHistory() {
           </table>
         </div>
       </div>
+      <PrintReport title="Histórico de Recebidos" subtitle={search ? `Filtro: "${search}"` : "Todas as cobranças liquidadas"} testid="print-report-recebidos">
+        <table style={printTableStyle}>
+          <thead>
+            <tr>{["Devedor", t("invoice"), "Vencimento", "Valor", "Estado"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {recebidos.map((c) => (
+              <tr key={c.id}>
+                <td style={printTdStyle}>{c.debtor_name}</td>
+                <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{c.invoice_number}</td>
+                <td style={printTdStyle}>{fmtDate(c.due_date)}</td>
+                <td style={{ ...printTdStyle, textAlign: "right", fontFamily: "monospace" }}>{money(c.amount)}</td>
+                <td style={printTdStyle}>Recebido</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3} style={{ ...printTdStyle, fontWeight: 700 }}>Total recuperado ({recebidos.length} registos)</td>
+              <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(total)}</td>
+              <td style={printTdStyle} />
+            </tr>
+          </tfoot>
+        </table>
+      </PrintReport>
     </div>
   );
 }

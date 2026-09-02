@@ -8,6 +8,12 @@ export const BUCKETS = {
   paga: { label: "Paga", cls: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30", hex: "#71717A" },
 };
 
+export function statusLabelOf(c) {
+  if (c.status === "paga") return "Recebido";
+  if (c.status === "negociacao") return "Negociando";
+  return c.days_overdue > 0 ? `Atrasado (${c.days_overdue}d)` : "Por Vencer";
+}
+
 export function fmtDate(iso) {
   if (!iso) return "—";
   return new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("pt-PT", {

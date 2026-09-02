@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Clock, Plus } from "lucide-react";
+import { Search, Clock, Plus, Printer } from "lucide-react";
 import { api } from "@/lib/api";
-import { BUCKETS, fmtDate } from "@/lib/badges";
+import { BUCKETS, fmtDate, statusLabelOf } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
 import ImportPdfDialog from "@/components/ImportPdfDialog";
 import WhatsAppQuickButton from "@/components/WhatsAppQuickButton";
+import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
 
 export default function PendingCharges() {
   const { isAdmin } = useAuth();
@@ -52,6 +53,13 @@ export default function PendingCharges() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <button
+              onClick={() => window.print()}
+              data-testid="pendentes-print-btn"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-brand/50 hover:bg-brand-soft transition-all duration-200"
+            >
+              <Printer size={16} /> Gerar Relatório PDF
+            </button>
             <ImportPdfDialog onImported={load} />
             <button
               onClick={() => setFormOpen(true)}
@@ -119,6 +127,37 @@ export default function PendingCharges() {
           </table>
         </div>
       </div>
+
+      <PrintReport
+        title={`Listagem de Cobranças Pendentes`}
+        subtitle={search ? `Filtro: "${search}"` : "Todas as cobranças por liquidar"}
+        testid="print-report-pendentes"
+      >
+        <table style={printTableStyle}>
+          <thead>
+            <tr>{["Devedor", "Factura", "Vencimento", "Dias", "Valor", "Estado"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {pendentes.map((c) => (
+              <tr key={c.id}>
+                <td style={printTdStyle}>{c.debtor_name}</td>
+                <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{c.invoice_number}</td>
+                <td style={printTdStyle}>{fmtDate(c.due_date)}</td>
+                <td style={printTdStyle}>{c.days_overdue}d</td>
+                <td style={{ ...printTdStyle, textAlign: "right", fontFamily: "monospace" }}>{money(c.amount)}</td>
+                <td style={printTdStyle}>{statusLabelOf(c)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={4} style={{ ...printTdStyle, fontWeight: 700 }}>Total ({pendentes.length} registos)</td>
+              <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(total)}</td>
+              <td style={printTdStyle} />
+            </tr>
+          </tfoot>
+        </table>
+      </PrintReport>
 
       <ChargeFormDialog open={formOpen} onOpenChange={setFormOpen} onSaved={load} />
     </div>

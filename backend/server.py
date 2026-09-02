@@ -431,10 +431,15 @@ async def get_charge(charge_id: str, company: dict = Depends(get_current_company
 @api_router.put("/charges/{charge_id}")
 async def update_charge(charge_id: str, data: ChargeInput, ctx: dict = Depends(require_admin)):
     company = ctx["company"]
-    await get_owned_charge(charge_id, company)
+    existing = await get_owned_charge(charge_id, company)
     if data.status not in ("pendente", "paga", "negociacao"):
         raise HTTPException(status_code=400, detail="Estado inválido")
-    await db.charges.update_one({"id": charge_id}, {"$set": data.model_dump()})
+    updates = data.model_dump()
+    if data.status == "paga" and existing.get("status") != "paga":
+        updates["paid_at"] = datetime.now(timezone.utc).isoformat()
+    elif data.status != "paga":
+        updates["paid_at"] = None
+    await db.charges.update_one({"id": charge_id}, {"$set": updates})
     updated = await db.charges.find_one({"id": charge_id}, {"_id": 0})
     return compute_aging(updated)
 
@@ -974,6 +979,47 @@ async def dashboard(ctx: dict = Depends(require_admin)):
         "buckets": buckets,
         "followups": followups,
         "recent_activities": activities,
+    }
+
+
+# ---------- Relatórios de Gestão ----------
+
+@api_router.get("/reports/weekly")
+async def weekly_report(ctx: dict = Depends(require_admin)):
+    company = ctx["company"]
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    interactions = await db.interactions.find(
+        {"company_id": company["id"], "created_at": {"$gte": since}}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    ids = list({i["charge_id"] for i in interactions})
+    names = {}
+    if ids:
+        async for ch in db.charges.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "debtor_name": 1}):
+            names[ch["id"]] = ch["debtor_name"]
+
+    counts = {"chamada": 0, "email": 0, "whatsapp": 0, "nota": 0}
+    for i in interactions:
+        counts[i["type"]] = counts.get(i["type"], 0) + 1
+
+    charges = await db.charges.find({"company_id": company["id"]}, {"_id": 0}).to_list(1000)
+    paid_week = [c for c in charges if c["status"] == "paga" and c.get("paid_at") and c["paid_at"] >= since]
+    negotiations = [
+        {
+            "debtor_name": c["debtor_name"], "invoice_number": c["invoice_number"], "amount": c["amount"],
+            "promise_date": c.get("promise_date"), "agreed_amount": c.get("agreed_amount"), "notes": c.get("notes", ""),
+        }
+        for c in charges if c["status"] == "negociacao"
+    ]
+
+    return {
+        "period": {"from": since[:10], "to": date.today().isoformat()},
+        "counts": counts,
+        "total_activities": len(interactions),
+        "activities": [{**i, "debtor_name": names.get(i["charge_id"], "")} for i in interactions],
+        "paid_this_week": len(paid_week),
+        "recovered_this_week": round(sum(c["amount"] for c in paid_week), 2),
+        "negotiations": negotiations,
     }
 
 

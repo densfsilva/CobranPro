@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Printer, FileBarChart, RotateCcw } from "lucide-react";
+import { Printer, FileBarChart, RotateCcw, CalendarRange, PhoneCall, MessageCircle, Mail, StickyNote } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import { useAuth } from "@/context/AuthContext";
+import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const ACT_ICONS = { chamada: PhoneCall, whatsapp: MessageCircle, email: Mail, nota: StickyNote };
+const fmtDT = (iso) => new Date(iso).toLocaleString("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
 const STATUS_OPTIONS = [
   ["todas", "Todos os estados"],
@@ -23,8 +26,9 @@ function statusLabel(c) {
 }
 
 export default function Reports() {
-  const { company } = useAuth();
   const [charges, setCharges] = useState([]);
+  const [weekly, setWeekly] = useState(null);
+  const [printMode, setPrintMode] = useState("list");
   const [cliente, setCliente] = useState("");
   const [status, setStatus] = useState("todas");
   const [from, setFrom] = useState("");
@@ -32,7 +36,11 @@ export default function Reports() {
 
   useEffect(() => {
     api.get("/charges").then(({ data }) => setCharges(data));
+    api.get("/reports/weekly").then(({ data }) => setWeekly(data)).catch(() => {});
   }, []);
+
+  const printList = () => { setPrintMode("list"); setTimeout(() => window.print(), 60); };
+  const printWeekly = () => { setPrintMode("weekly"); setTimeout(() => window.print(), 60); };
 
   const filtered = useMemo(() => charges.filter((c) => {
     if (cliente && !c.debtor_name.toLowerCase().includes(cliente.toLowerCase())) return false;
@@ -48,7 +56,6 @@ export default function Reports() {
   const total = filtered.reduce((s, c) => s + c.amount, 0);
   const reset = () => { setCliente(""); setStatus("todas"); setFrom(""); setTo(""); };
   const statusText = STATUS_OPTIONS.find(([k]) => k === status)?.[1];
-  const generatedAt = new Date().toLocaleString("pt-PT", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="space-y-6" data-testid="relatorios-page">
@@ -60,7 +67,7 @@ export default function Reports() {
           <p className="text-sm text-muted-foreground mt-1">Filtre por cliente, estado e período. Exporte para PDF via impressão.</p>
         </div>
         <button
-          onClick={() => window.print()}
+          onClick={printList}
           data-testid="report-print-btn"
           className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand text-white text-sm font-semibold hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
         >
@@ -132,22 +139,149 @@ export default function Reports() {
         </div>
       </div>
 
-      <div id="print-report" data-testid="print-report">
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 8 }}>
-          {company.logo_base64
-            ? <img src={company.logo_base64} alt={company.company_name} style={{ width: 48, height: 48, objectFit: "contain" }} />
-            : <div style={{ width: 48, height: 48, borderRadius: 8, background: company.primary_color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 18 }}>
-                {company.company_name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
-              </div>}
+      <div className="bg-card border border-border rounded-xl p-5 space-y-4" data-testid="weekly-report-section">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{company.company_name}</p>
-            <p style={{ fontSize: 12, color: "#475569", margin: 0 }}>{company.nif ? `${company.country === "BR" ? "CNPJ" : "NIF"} ${company.nif} · ` : ""}{company.address ? `${company.address} · ` : ""}{company.email}</p>
+            <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
+              <CalendarRange size={18} className="text-brand" /> Relatórios de Gestão — Resumo Semanal
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">Consolidação dos últimos 7 dias: quem ligou, quem enviou email e o que foi acordado.</p>
           </div>
+          <button onClick={printWeekly} data-testid="weekly-print-btn"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-border text-sm font-semibold text-muted-foreground hover:text-foreground hover:border-brand/50 hover:bg-brand-soft transition-all duration-200">
+            <Printer size={16} /> Imprimir Resumo Semanal
+          </button>
         </div>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: "16px 0 4px" }}>Relatório de Cobranças</h1>
-        <p style={{ fontSize: 12, color: "#475569", margin: "0 0 16px" }}>
-          Gerado a {generatedAt} · Estado: {statusText}{cliente ? ` · Cliente: "${cliente}"` : ""}{from || to ? ` · Vencimento: ${from || "…"} a ${to || "…"}` : ""}
-        </p>
+        {weekly ? (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3" data-testid="weekly-stats">
+              {[
+                ["Chamadas", weekly.counts.chamada, PhoneCall],
+                ["Emails", weekly.counts.email, Mail],
+                ["WhatsApp", weekly.counts.whatsapp, MessageCircle],
+                ["Recebidas", weekly.paid_this_week, CalendarRange],
+                ["Recuperado", money(weekly.recovered_this_week), FileBarChart],
+              ].map(([label, value, Icon]) => (
+                <div key={label} className="bg-background border border-border rounded-lg p-3 text-center">
+                  <Icon size={15} className="text-brand mx-auto mb-1" />
+                  <p className="font-heading font-bold text-lg font-mono-num" data-testid={`weekly-stat-${label.toLowerCase()}`}>{value}</p>
+                  <p className="text-[11px] text-muted-foreground">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {weekly.negotiations.length > 0 && (
+              <div data-testid="weekly-negotiations">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">O que foi acordado</p>
+                <div className="space-y-1.5">
+                  {weekly.negotiations.map((n, i) => (
+                    <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm bg-background border border-orange-500/20 rounded-lg px-3 py-2" data-testid={`weekly-negotiation-${i}`}>
+                      <span className="font-medium">{n.debtor_name}</span>
+                      <span className="font-mono-num text-xs text-muted-foreground">{n.invoice_number}</span>
+                      {n.agreed_amount != null && <span className="text-orange-400 font-mono-num text-xs">acordado {money(n.agreed_amount)}</span>}
+                      {n.promise_date && <span className="text-xs text-muted-foreground">promessa {fmtDate(n.promise_date)}</span>}
+                      {n.notes && <span className="text-xs text-muted-foreground truncate max-w-[280px]">{n.notes}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div data-testid="weekly-activities">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Atividades da semana ({weekly.total_activities})</p>
+              <div className="max-h-56 overflow-y-auto divide-y divide-border/50">
+                {weekly.activities.map((a) => {
+                  const Icon = ACT_ICONS[a.type] || StickyNote;
+                  return (
+                    <div key={a.id} className="flex items-center gap-3 py-2" data-testid={`weekly-activity-${a.id}`}>
+                      <div className="w-7 h-7 rounded-full bg-brand-soft flex items-center justify-center shrink-0"><Icon size={13} className="text-brand" /></div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm truncate">{a.note}</p>
+                        <p className="text-xs text-muted-foreground">{a.debtor_name || "—"}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground font-mono-num shrink-0">{fmtDT(a.created_at)}</span>
+                    </div>
+                  );
+                })}
+                {weekly.activities.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">Sem atividades registadas esta semana.</p>}
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">A carregar resumo semanal...</p>
+        )}
+      </div>
+
+      <PrintReport
+        title="Resumo Semanal de Gestão"
+        subtitle={weekly ? `Período: ${fmtDate(weekly.period.from)} a ${fmtDate(weekly.period.to)}` : ""}
+        active={printMode === "weekly"}
+        testid="print-report-weekly"
+      >
+        {weekly && (
+          <>
+            <table style={{ ...printTableStyle, marginBottom: 20 }}>
+              <tbody>
+                <tr>
+                  <td style={printTdStyle}>Chamadas</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 700 }}>{weekly.counts.chamada}</td>
+                  <td style={printTdStyle}>Emails</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 700 }}>{weekly.counts.email}</td>
+                  <td style={printTdStyle}>WhatsApp</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 700 }}>{weekly.counts.whatsapp}</td>
+                </tr>
+                <tr>
+                  <td style={printTdStyle}>Cobranças recebidas</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 700 }}>{weekly.paid_this_week}</td>
+                  <td style={printTdStyle}>Valor recuperado</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(weekly.recovered_this_week)}</td>
+                  <td style={printTdStyle}>Em negociação</td><td style={{ ...printTdStyle, textAlign: "right", fontWeight: 700 }}>{weekly.negotiations.length}</td>
+                </tr>
+              </tbody>
+            </table>
+            {weekly.negotiations.length > 0 && (
+              <>
+                <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>Acordos em Negociação</p>
+                <table style={{ ...printTableStyle, marginBottom: 20 }}>
+                  <thead>
+                    <tr>{["Cliente", "Documento", "Valor", "Acordado", "Promessa", "Observações"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {weekly.negotiations.map((n, i) => (
+                      <tr key={i}>
+                        <td style={printTdStyle}>{n.debtor_name}</td>
+                        <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{n.invoice_number}</td>
+                        <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{money(n.amount)}</td>
+                        <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{n.agreed_amount != null ? money(n.agreed_amount) : "—"}</td>
+                        <td style={printTdStyle}>{n.promise_date ? fmtDate(n.promise_date) : "—"}</td>
+                        <td style={{ ...printTdStyle, fontSize: 11 }}>{n.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+            <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>Atividades da Semana</p>
+            <table style={printTableStyle}>
+              <thead>
+                <tr>{["Data", "Tipo", "Cliente", "Resumo"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {weekly.activities.map((a) => (
+                  <tr key={a.id}>
+                    <td style={{ ...printTdStyle, whiteSpace: "nowrap" }}>{fmtDT(a.created_at)}</td>
+                    <td style={{ ...printTdStyle, textTransform: "capitalize" }}>{a.type}</td>
+                    <td style={printTdStyle}>{a.debtor_name || "—"}</td>
+                    <td style={{ ...printTdStyle, fontSize: 11 }}>{a.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </PrintReport>
+
+      <PrintReport
+        title="Relatório de Cobranças"
+        subtitle={`Estado: ${statusText}${cliente ? ` · Cliente: "${cliente}"` : ""}${from || to ? ` · Vencimento: ${from || "…"} a ${to || "…"}` : ""}`}
+        active={printMode === "list"}
+        testid="print-report"
+      >
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
             <tr>
@@ -175,7 +309,7 @@ export default function Reports() {
             </tr>
           </tfoot>
         </table>
-      </div>
+      </PrintReport>
     </div>
   );
 }

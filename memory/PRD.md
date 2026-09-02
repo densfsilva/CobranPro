@@ -22,6 +22,12 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-02 — Iteração 13: Sistema Global de Relatórios
+- Componente PrintReport reutilizável (logo/iniciais, nome, NIF/CNPJ, endereço, data de geração, rodapé Cobranpro) com CSS de impressão por classe (.print-report.print-active) — suporta múltiplos relatórios por página
+- Botão "Gerar Relatório PDF" em todas as abas: Dashboard (resumo executivo com KPIs + tabela de antiguidade com cores), Pendentes e Recebidos (listagem detalhada com estado, respeita o filtro de pesquisa da aba), Em Negociação (foco em promessas de pagamento, valor acordado e observações)
+- Relatórios de Gestão: novo endpoint GET /api/reports/weekly (admin only) que consolida os últimos 7 dias — contagens por tipo de contacto, cobranças recebidas e valor recuperado na semana (novo campo paid_at), acordos em negociação e lista de atividades com nome do devedor; secção "Resumo Semanal" na página Relatórios com impressão própria
+- update_charge regista paid_at ao marcar como paga (limpa ao reabrir); backfill na demo (Carla Mendes)
+
 ### 2026-09-01 — Iteração 12: Reescrita definitiva do importador PDF Bling
 - Algoritmo exato pedido: iteração linha a linha; linha com 'CNPJ:' (ou CPF:/NIF:) define current_client_name (texto anterior) + current_cnpj em memória; linhas com data criam fatura associada ao cliente atual; Vencimento = 2ª data da linha (fallback: 1ª); Valor = último número decimal da linha; ignora Total/Subtotal/Relatório
 - Registos individuais por fatura com nome do cliente correto; compatibilidade mantida com formato plano (cliente+doc na mesma linha) e com relatórios de data única
