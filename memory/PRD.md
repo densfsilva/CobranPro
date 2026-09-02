@@ -22,6 +22,12 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-01 — Iteração 12: Reescrita definitiva do importador PDF Bling
+- Algoritmo exato pedido: iteração linha a linha; linha com 'CNPJ:' (ou CPF:/NIF:) define current_client_name (texto anterior) + current_cnpj em memória; linhas com data criam fatura associada ao cliente atual; Vencimento = 2ª data da linha (fallback: 1ª); Valor = último número decimal da linha; ignora Total/Subtotal/Relatório
+- Registos individuais por fatura com nome do cliente correto; compatibilidade mantida com formato plano (cliente+doc na mesma linha) e com relatórios de data única
+- Testado: PDF Bling com 2 datas por linha → FAT-2001/2002/2003 com vencimento correto (2ª data) e valor correto; regressões data-única e plano PT OK
+- Fix teste: bucket_assignment_on_charges passou a calcular dias em atraso dinamicamente (drift de data)
+
 ### 2026-09-01 — Iteração 11: Branding e Acabamento (consolidação para apresentação)
 - White Label real: logótipo da empresa aparece no menu lateral E no topo do Dashboard (dashboard-logo); brand da app renomeada para "Cobranpro" (login, sidebar, título, EMAIL_FROM_NAME)
 - Página de Login premium: wordmark "Cobranpro" com tagline, heading "Bem-vindo de volta" + mensagem de boas-vindas, versão mobile com wordmark no topo (auth-mobile-brand)

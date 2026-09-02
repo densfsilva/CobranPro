@@ -137,14 +137,24 @@ class TestDashboard:
         assert d["buckets"] == {"por_vencer": 1, "verde": 1, "amarelo": 1, "vermelho": 1, "roxo": 1}, d["buckets"]
 
     def test_bucket_assignment_on_charges(self, authed):
+        from datetime import date as _date
         charges = authed.get(f"{API}/charges").json()
-        by_days = {c["debtor_name"]: (c["days_overdue"], c["bucket"], c["status"]) for c in charges}
-        assert by_days["Marta Sousa"] == (5, "verde", "pendente")
-        assert by_days["Padaria Central Lda"] == (20, "amarelo", "pendente")
-        assert by_days["João Ribeiro"] == (45, "vermelho", "pendente")
-        assert by_days["Auto Oficina São Pedro"] == (80, "roxo", "pendente")
-        assert by_days["Clínica Vita"] == (0, "por_vencer", "pendente")
-        assert by_days["Carla Mendes"][1:] == ("paga", "paga")
+        by_days = {c["debtor_name"]: c for c in charges}
+
+        def expected(name):
+            c = by_days[name]
+            if c["status"] == "paga":
+                return c["bucket"] == "paga"
+            days = max((_date.today() - _date.fromisoformat(c["due_date"])).days, 0)
+            bucket = "por_vencer" if days == 0 else "verde" if days <= 15 else "amarelo" if days <= 30 else "vermelho" if days <= 60 else "roxo"
+            return c["days_overdue"] == days and c["bucket"] == bucket and c["status"] == "pendente"
+
+        assert expected("Marta Sousa")
+        assert expected("Padaria Central Lda")
+        assert expected("João Ribeiro")
+        assert expected("Auto Oficina São Pedro")
+        assert expected("Clínica Vita")
+        assert by_days["Carla Mendes"]["bucket"] == "paga"
 
 
 # ---------- Charges CRUD ----------

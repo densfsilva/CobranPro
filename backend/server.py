@@ -747,6 +747,7 @@ DATE_RE = re.compile(r"\b(\d{2})[/-](\d{2})[/-](\d{4})\b")
 NIF_RE = re.compile(r"\b\d{9}\b")
 CNPJ_RE = re.compile(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
 CPF_RE = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
+CLIENT_DOC_RE = re.compile(r"(?i)\b(CNPJ|CPF|NIF)\s*[:\-]?\s*(\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}|\d{3}\.?\d{3}\.?\d{3}-?\d{2}|\d{9})\b")
 AMOUNT_RE = re.compile(r"(?:€|R\$)?\s*(\d{1,3}(?:[.\s ]\d{3})+,\d{2}|\d+,\d{2}|\d{1,3}(?:,\d{3})+\.\d{2}|\d+\.\d{2})")
 INVOICE_RE = re.compile(r"\b((?:FT|FAT|FR|NC|INV)[-/\s]?\d[\w/-]*)", re.IGNORECASE)
 
@@ -801,7 +802,8 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
         c["invoice_number"] async for c in db.charges.find({"company_id": company["id"]}, {"_id": 0, "invoice_number": 1})
     }
     seen_in_batch = set()
-    current_client = None  # (nome, doc_fiscal) — relatórios agrupados por cliente (ex.: Bling)
+    current_client_name = None
+    current_client_doc = None
     pending_name = None
 
     for raw_line in lines:
@@ -809,44 +811,41 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
         if len(line) < 5:
             continue
         lower = line.lower()
+        # Limpeza: ignora Total, Subtotal, Relatório e metadados de página
         if any(w in lower for w in SKIP_WORDS):
             continue
-        # Cabeçalhos de página/colunas ("Nº doc. ... Vencimento ... Valor")
         if "vencimento" in lower and any(h in lower for h in ("doc", "valor", "cliente")):
             continue
 
-        date_m = DATE_RE.search(line)
-        doc_m = CNPJ_RE.search(line) or CPF_RE.search(line) or NIF_RE.search(line)
-        rest = line.replace(date_m.group(0), " ") if date_m else line
-        amounts = AMOUNT_RE.findall(rest)
+        date_matches = list(DATE_RE.finditer(line))
+        doc_m = CLIENT_DOC_RE.search(line)
+        bare_m = None if doc_m else (CNPJ_RE.search(line) or CPF_RE.search(line) or NIF_RE.search(line))
+        doc_token = doc_m.group(2) if doc_m else (bare_m.group(0) if bare_m else None)
+        doc_start = doc_m.start() if doc_m else (bare_m.start() if bare_m else None)
 
-        if date_m and amounts:
-            # Linha de fatura — colunas: Nº doc. | Vencimento | Valor
-            if doc_m:
-                # Formato plano: cliente na própria linha (retrocompatível)
-                name = _extract_client_name(rest, doc_m.group(0))
-                inv_m0 = INVOICE_RE.search(rest)
-                if inv_m0:
-                    name = name.replace(inv_m0.group(0), " ")
-                name = _clean_name(name)
-                if len(name) >= 3:
-                    current_client = (name, doc_m.group(0))
-            if not current_client:
+        # Estado do Cliente: linha com 'CNPJ:' (ou CPF:/NIF:) → texto anterior = nome, número = documento
+        if doc_token and not date_matches:
+            name = _clean_name(line[:doc_start])
+            if len(name) < 3 and pending_name:
+                name = pending_name
+            if len(name) >= 3:
+                current_client_name, current_client_doc = name, doc_token
+                pending_name = None
+            continue
+
+        # Extração de Faturas: linha com data + cliente atual definido
+        if date_matches:
+            rest = line
+            for dm in date_matches:
+                rest = rest.replace(dm.group(0), " ", 1)
+            amounts = AMOUNT_RE.findall(rest)
+            if not amounts:
                 skipped.append(line[:80])
                 continue
-            client_name, client_doc = current_client
-
-            tmp = rest.replace(doc_m.group(0), " ") if doc_m else rest
-            inv_m = INVOICE_RE.search(tmp)
-            if inv_m:
-                ndoc = inv_m.group(0)
-            else:
-                tokens = [tk for tk in AMOUNT_RE.sub(" ", tmp).split() if any(ch.isdigit() for ch in tk)]
-                ndoc = tokens[0] if tokens else None
-
             try:
-                due = date(int(date_m.group(3)), int(date_m.group(2)), int(date_m.group(1))).isoformat()
-                amount = max(parse_amount(a) for a in amounts)
+                due_m = date_matches[1] if len(date_matches) > 1 else date_matches[0]
+                due = date(int(due_m.group(3)), int(due_m.group(2)), int(due_m.group(1))).isoformat()
+                amount = parse_amount(amounts[-1])  # Valor: último número decimal da linha
             except (ValueError, OverflowError):
                 skipped.append(line[:80])
                 continue
@@ -854,18 +853,37 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
                 skipped.append(line[:80])
                 continue
 
+            if doc_token:
+                # Formato plano: cliente na própria linha da fatura
+                name = _clean_name(line[:doc_start])
+                if len(name) >= 3:
+                    current_client_name, current_client_doc = name, doc_token
+            if not current_client_name:
+                skipped.append(line[:80])
+                continue
+
+            # Nº doc.
+            tmp = rest.replace(doc_token, " ") if doc_token else rest
+            inv_m = INVOICE_RE.search(tmp)
+            if inv_m:
+                ndoc = inv_m.group(0)
+            else:
+                tokens = [tk for tk in AMOUNT_RE.sub(" ", tmp).split() if any(ch.isdigit() for ch in tk)]
+                ndoc = tokens[0] if tokens else None
             invoice_number = (ndoc or f"IMP-{len(created) + 1:03d}").upper().replace(" ", "")
+
             if invoice_number in existing_invoices or invoice_number in seen_in_batch:
                 skipped.append(f"{line[:60]} (já existe)")
                 continue
             seen_in_batch.add(invoice_number)
+
             charge = {
                 "id": str(uuid.uuid4()),
                 "company_id": company["id"],
-                "debtor_name": client_name[:200],
+                "debtor_name": current_client_name[:200],
                 "debtor_email": "",
                 "debtor_phone": "",
-                "debtor_nif": client_doc,
+                "debtor_nif": current_client_doc,
                 "invoice_number": invoice_number,
                 "amount": round(amount, 2),
                 "due_date": due,
@@ -879,16 +897,8 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
             await db.charges.insert_one(charge)
             charge.pop("_id", None)
             created.append(charge)
-        elif doc_m:
-            # Linha de cabeçalho de cliente (Nome + CPF/CNPJ) — inicia um novo bloco
-            name = _clean_name(_extract_client_name(line, doc_m.group(0)))
-            if len(name) < 3 and pending_name:
-                name = pending_name
-            if len(name) >= 3:
-                current_client = (name, doc_m.group(0))
-                pending_name = None
         else:
-            # Possível linha só com o nome do cliente (Bling: nome acima do CPF/CNPJ)
+            # Possível linha só com o nome do cliente (aparece acima da linha 'CNPJ:')
             if re.search(r"[A-Za-zÀ-ÿ]{3}", line):
                 pending_name = re.sub(r"(?i)^\s*(cliente|nome|empresa)\s*[:\-]\s*", "", line).strip(" -|•·:")
             else:
