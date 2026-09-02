@@ -13,6 +13,7 @@ from typing import Optional, List
 
 import io
 import ipaddress
+import json
 from html import escape
 from html.parser import HTMLParser
 from urllib.parse import quote, urlparse
@@ -21,6 +22,7 @@ import bcrypt
 import httpx
 import jwt
 import pdfplumber
+from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.middleware.cors import CORSMiddleware
@@ -784,6 +786,107 @@ def _clean_name(text: str) -> str:
     return text
 
 
+# ---------- Extração por IA (importador universal) ----------
+
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+
+AI_SYSTEM_PROMPT = (
+    "Age como um especialista em contabilidade. Analisa este texto de um relatório de faturação e extrai "
+    "TODAS as faturas pendentes. Para cada fatura, identifica: Nome do Cliente, NIF ou CNPJ, Número do "
+    "Documento, Data de Vencimento e Valor em Dívida. Ignora totais e rodapés. Devolve o resultado "
+    "estritamente em formato JSON: {\"faturas\": [{\"cliente\": \"...\", \"documento_fiscal\": \"...\", "
+    "\"numero_documento\": \"...\", \"vencimento\": \"AAAA-MM-DD\", \"valor\": 0.0}]}. Apenas JSON, sem markdown."
+)
+
+
+async def extract_invoices_ai(raw_text: str) -> list:
+    chat = LlmChat(
+        api_key=EMERGENT_LLM_KEY,
+        session_id=f"pdf-import-{uuid.uuid4()}",
+        system_message=AI_SYSTEM_PROMPT,
+    ).with_model("openai", "gpt-5.4")
+    buf = ""
+    async for ev in chat.stream_message(UserMessage(text=f"Texto do relatório:\n\n{raw_text[:24000]}")):
+        if isinstance(ev, TextDelta):
+            buf += ev.content
+        elif isinstance(ev, StreamDone):
+            break
+    m = re.search(r"\{.*\}", buf, re.DOTALL) or re.search(r"\[.*\]", buf, re.DOTALL)
+    if not m:
+        raise ValueError("IA não devolveu JSON")
+    data = json.loads(m.group(0))
+    if isinstance(data, list):
+        return data
+    return data.get("faturas") or data.get("invoices") or []
+
+
+def _norm_ai_date(v):
+    if not v:
+        return None
+    v = str(v).strip()
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", v)
+    if m:
+        return m.group(0)
+    m = re.match(r"^(\d{2})[/-](\d{2})[/-](\d{4})$", v)
+    if m:
+        return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+    return None
+
+
+def _norm_ai_amount(v):
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return parse_amount(str(v))
+    except Exception:
+        return None
+
+
+async def create_charges_from_ai(items: list, company: dict, filename: str):
+    created, skipped = [], []
+    existing_invoices = {
+        c["invoice_number"] async for c in db.charges.find({"company_id": company["id"]}, {"_id": 0, "invoice_number": 1})
+    }
+    for it in items:
+        if not isinstance(it, dict):
+            skipped.append(str(it)[:80])
+            continue
+        name = str(it.get("cliente") or it.get("nome") or it.get("client") or "").strip()
+        doc = str(it.get("documento_fiscal") or it.get("nif") or it.get("cnpj") or it.get("cpf") or "").strip()
+        ndoc = str(it.get("numero_documento") or it.get("documento") or it.get("fatura") or it.get("invoice") or "").strip()
+        due = _norm_ai_date(it.get("vencimento") or it.get("data_vencimento") or it.get("due_date"))
+        amount = _norm_ai_amount(it.get("valor") if it.get("valor") is not None else it.get("valor_em_divida") or it.get("amount"))
+        if len(name) < 3 or not due or not amount or amount <= 0:
+            skipped.append(str(it)[:80])
+            continue
+        invoice_number = (ndoc or f"IMP-{len(created) + 1:03d}").upper().replace(" ", "")
+        if invoice_number in existing_invoices:
+            skipped.append(f"{invoice_number} (já existe)")
+            continue
+        existing_invoices.add(invoice_number)
+        charge = {
+            "id": str(uuid.uuid4()),
+            "company_id": company["id"],
+            "debtor_name": name[:200],
+            "debtor_email": "",
+            "debtor_phone": "",
+            "debtor_nif": doc,
+            "invoice_number": invoice_number,
+            "amount": round(amount, 2),
+            "due_date": due,
+            "status": "pendente",
+            "next_contact_date": None,
+            "promise_date": None,
+            "agreed_amount": None,
+            "notes": f"Importado de {filename} (IA)",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.charges.insert_one(charge)
+        charge.pop("_id", None)
+        created.append(charge)
+    return created, skipped
+
+
 
 @api_router.post("/charges/import-pdf")
 async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(require_admin)):
@@ -801,6 +904,24 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
                 lines.extend((page.extract_text() or "").splitlines())
     except Exception:
         raise HTTPException(status_code=400, detail="Não foi possível ler o PDF")
+
+    raw_text = "\n".join(lines)
+
+    # Motor universal: IA extrai as faturas do texto bruto (qualquer ERP — Bling, PHC, SAGE, etc.)
+    if EMERGENT_LLM_KEY and raw_text.strip():
+        try:
+            ai_items = await extract_invoices_ai(raw_text)
+            if ai_items:
+                created, skipped = await create_charges_from_ai(ai_items, company, file.filename)
+                return {
+                    "created_count": len(created),
+                    "created": [compute_aging(c) for c in created],
+                    "skipped_count": len(skipped),
+                    "skipped": skipped[:20],
+                    "engine": "ia",
+                }
+        except Exception as e:
+            logger.warning("Extração por IA falhou, a usar parser determinístico: %s", e)
 
     created, skipped = [], []
     existing_invoices = {
@@ -916,6 +1037,7 @@ async def import_charges_pdf(file: UploadFile = File(...), ctx: dict = Depends(r
         "created": [compute_aging(c) for c in created],
         "skipped_count": len(skipped),
         "skipped": skipped[:20],
+        "engine": "regex",
     }
 
 

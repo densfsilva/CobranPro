@@ -74,7 +74,7 @@ export default function ImportPdfDialog({ onImported }) {
             <div className="flex justify-end">
               <button onClick={submit} disabled={busy} data-testid="import-erp-submit"
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand text-white text-sm font-semibold hover:opacity-90 transition-opacity duration-200 disabled:opacity-50">
-                {busy ? <><Loader2 size={15} className="animate-spin" /> A ler o PDF...</> : "Importar"}
+                {busy ? <><Loader2 size={15} className="animate-spin" /> A processar dados com inteligência...</> : "Importar"}
               </button>
             </div>
             {result && (
@@ -82,6 +82,7 @@ export default function ImportPdfDialog({ onImported }) {
                 <p className="text-sm font-semibold flex items-center gap-2">
                   <CheckCircle2 size={15} className="text-emerald-400" />
                   {result.created_count} {invoiceWord(result.created_count)} criada(s){result.skipped_count > 0 && ` · ${result.skipped_count} linha(s) ignorada(s)`}
+                  {result.engine === "ia" && <span className="ml-2 px-2 py-0.5 rounded-full bg-brand-soft text-brand text-[10px] font-semibold uppercase tracking-wider" data-testid="import-erp-engine">Extração por IA</span>}
                 </p>
                 <div className="max-h-44 overflow-y-auto space-y-1">
                   {(result.created || []).map((c) => (

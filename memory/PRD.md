@@ -22,6 +22,13 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-02 — Iteração 14: Motor de Importação Universal via IA
+- Backend extrai apenas o texto bruto do PDF (pdfplumber) e envia-o ao LLM (gpt-5.4 via EMERGENT_LLM_KEY, streaming) com prompt de especialista em contabilidade; resposta estritamente JSON é parseada, normalizada (datas dd/mm/aaaa↔ISO, valores PT/BR) e cria registos com buckets de atraso calculados — compatível com qualquer ERP (Bling, PHC, SAGE...) sem scripts individuais
+- Parser determinístico (iteração 12) mantido como fallback automático se a IA falhar ou não encontrar faturas; resposta inclui campo "engine": "ia" | "regex"
+- Dedup por nº de documento mantido no caminho de IA; import.teste validado: 3 faturas com cliente/CNPJ/valor/vencimento corretos via IA
+- UI: botão mostra "A processar dados com inteligência..." durante o upload e o resultado exibe badge "Extração por IA"
+- Nota: testes de import no pytest agora exercitam o caminho de IA (chave universal); fallback regex preservado
+
 ### 2026-09-02 — Iteração 13: Sistema Global de Relatórios
 - Componente PrintReport reutilizável (logo/iniciais, nome, NIF/CNPJ, endereço, data de geração, rodapé Cobranpro) com CSS de impressão por classe (.print-report.print-active) — suporta múltiplos relatórios por página
 - Botão "Gerar Relatório PDF" em todas as abas: Dashboard (resumo executivo com KPIs + tabela de antiguidade com cores), Pendentes e Recebidos (listagem detalhada com estado, respeita o filtro de pesquisa da aba), Em Negociação (foco em promessas de pagamento, valor acordado e observações)
