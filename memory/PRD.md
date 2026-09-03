@@ -22,6 +22,9 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-03 — Deployment health check
+- deployment_agent: PASS (0 findings) — envs/CORS/compilação/supervisor OK; deployment iniciado de forma assíncrona
+
 ### 2026-09-03 — Iteração 15: Branding do sistema, agrupamento, edição, Cancelados (CONCLUÍDA)
 - Fix final (iteration_5.json): aging-chart com altura fixa h-[260px] no Dashboard.jsx — gráfico gigante eliminado (medido 260px vs 566px anteriores); validado por screenshot E2E no preview
 - Identidade Cobranpro fixa: logo retangular oficial no header e login (/logo-rect.png), logo quadrado como favicon/apple-touch-icon/PWA (manifest.json + /logo-square.png); NÃO são afetados pela customização white label dos clientes (logo da empresa fica na sidebar/dashboard/relatórios)
