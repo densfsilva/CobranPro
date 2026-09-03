@@ -6,11 +6,13 @@ export const BUCKETS = {
   roxo: { label: "Contencioso (>60d)", cls: "bg-purple-500/15 text-purple-400 border-purple-500/30", hex: "#8B5CF6" },
   negociacao: { label: "Em Negociação", cls: "bg-orange-500/15 text-orange-400 border-orange-500/30", hex: "#F97316" },
   paga: { label: "Paga", cls: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30", hex: "#71717A" },
+  cancelada: { label: "Cancelada", cls: "bg-slate-500/15 text-slate-400 border-slate-500/30", hex: "#64748B" },
 };
 
 export function statusLabelOf(c) {
   if (c.status === "paga") return "Recebido";
   if (c.status === "negociacao") return "Negociando";
+  if (c.status === "cancelada") return "Cancelada";
   return c.days_overdue > 0 ? `Atrasado (${c.days_overdue}d)` : "Por Vencer";
 }
 

@@ -22,6 +22,16 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-03 — Iteração 15: Branding do sistema, agrupamento, edição, Cancelados (CONCLUÍDA)
+- Fix final (iteration_5.json): aging-chart com altura fixa h-[260px] no Dashboard.jsx — gráfico gigante eliminado (medido 260px vs 566px anteriores); validado por screenshot E2E no preview
+- Identidade Cobranpro fixa: logo retangular oficial no header e login (/logo-rect.png), logo quadrado como favicon/apple-touch-icon/PWA (manifest.json + /logo-square.png); NÃO são afetados pela customização white label dos clientes (logo da empresa fica na sidebar/dashboard/relatórios)
+- Pendentes: lista agrupada por cliente com total do grupo e expandir/colapsar (chevron)
+- Edição: ChargeFormDialog ganhou modo de edição (prop charge → PUT) com 15 campos; botão "Editar" na ficha (admin)
+- Timeline: registos podem ser editados (PUT /api/interactions/{id}) e apagados (DELETE) com confirmação
+- Dados detalhados do cliente: whatsapp, debtor_email2, bank1, bank2, addr_rua/localidade/cp/estado — no formulário e na ficha
+- Gráfico do Dashboard: BarChart com dimensões explícitas (ResizeObserver) + YAxis com domínio explícito [0, max(dataMax+1, 5)] — escala corrigida
+- Nova aba "Cancelados" (status cancelada): excluída de KPIs, follow-ups e fluxo ativo; badge própria, página com pesquisa e relatório PDF; ações Cancelar/Reabrir na ficha
+
 ### 2026-09-02 — Iteração 14: Motor de Importação Universal via IA
 - Backend extrai apenas o texto bruto do PDF (pdfplumber) e envia-o ao LLM (gpt-5.4 via EMERGENT_LLM_KEY, streaming) com prompt de especialista em contabilidade; resposta estritamente JSON é parseada, normalizada (datas dd/mm/aaaa↔ISO, valores PT/BR) e cria registos com buckets de atraso calculados — compatível com qualquer ERP (Bling, PHC, SAGE...) sem scripts individuais
 - Parser determinístico (iteração 12) mantido como fallback automático se a IA falhar ou não encontrar faturas; resposta inclui campo "engine": "ia" | "regex"

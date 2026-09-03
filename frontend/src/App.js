@@ -8,6 +8,7 @@ import ChargeDetail from "@/pages/ChargeDetail";
 import PendingCharges from "@/pages/PendingCharges";
 import NegotiationCharges from "@/pages/NegotiationCharges";
 import ReceivedHistory from "@/pages/ReceivedHistory";
+import CancelledCharges from "@/pages/CancelledCharges";
 import Reports from "@/pages/Reports";
 import Team from "@/pages/Team";
 import Profile from "@/pages/Profile";
@@ -43,6 +44,7 @@ function App() {
           <Route path="/pendentes" element={<Protected><PendingCharges /></Protected>} />
           <Route path="/negociacao" element={<Protected><NegotiationCharges /></Protected>} />
           <Route path="/recebidos" element={<Protected><ReceivedHistory /></Protected>} />
+          <Route path="/cancelados" element={<Protected><CancelledCharges /></Protected>} />
           <Route path="/relatorios" element={<Protected adminOnly><Reports /></Protected>} />
           <Route path="/equipa" element={<Protected adminOnly><Team /></Protected>} />
           <Route path="/perfil" element={<Protected><Profile /></Protected>} />

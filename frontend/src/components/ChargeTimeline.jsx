@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { PhoneCall, Mail, MessageCircle, StickyNote, CalendarClock, Send, History } from "lucide-react";
+import { PhoneCall, Mail, MessageCircle, StickyNote, CalendarClock, Send, History, Pencil, Trash2, X } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ export default function ChargeTimeline({ charge, onChargeUpdate, reloadSignal })
   const [items, setItems] = useState([]);
   const [type, setType] = useState("chamada");
   const [note, setNote] = useState("");
+  const [editingId, setEditingId] = useState(null);
   const [nextDate, setNextDate] = useState(charge.next_contact_date || "");
   const [busy, setBusy] = useState(false);
 
@@ -29,14 +30,43 @@ export default function ChargeTimeline({ charge, onChargeUpdate, reloadSignal })
     if (!note.trim()) return;
     setBusy(true);
     try {
-      await api.post(`/charges/${charge.id}/interactions`, { type, note: note.trim() });
+      if (editingId) {
+        await api.put(`/interactions/${editingId}`, { type, note: note.trim() });
+        toast.success("Registo atualizado");
+      } else {
+        await api.post(`/charges/${charge.id}/interactions`, { type, note: note.trim() });
+        toast.success("Contacto registado na timeline");
+      }
       setNote("");
+      setEditingId(null);
       await load();
-      toast.success("Contacto registado na timeline");
     } catch (err) {
       toast.error(formatApiError(err));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const startEdit = (it) => {
+    setEditingId(it.id);
+    setType(TYPES[it.type] ? it.type : "chamada");
+    setNote(it.note);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setNote("");
+    setType("chamada");
+  };
+
+  const removeItem = async (it) => {
+    if (!window.confirm("Apagar este registo da timeline?")) return;
+    try {
+      await api.delete(`/interactions/${it.id}`);
+      await load();
+      toast.success("Registo apagado");
+    } catch (err) {
+      toast.error(formatApiError(err));
     }
   };
 
@@ -93,8 +123,14 @@ export default function ChargeTimeline({ charge, onChargeUpdate, reloadSignal })
             placeholder="Ex: Liguei hoje, cliente pediu novo prazo..." data-testid="timeline-note-input" className="bg-background flex-1" />
           <button type="submit" disabled={busy || !note.trim()} data-testid="timeline-add-btn"
             className="px-3 py-2 rounded-lg bg-brand text-white text-xs font-semibold hover:opacity-90 transition-opacity duration-200 disabled:opacity-50 flex items-center gap-1.5">
-            <Send size={13} /> {t("registerVerb")}
+            <Send size={13} /> {editingId ? t("save") : t("registerVerb")}
           </button>
+          {editingId && (
+            <button type="button" onClick={cancelEdit} data-testid="timeline-cancel-edit"
+              className="px-3 py-2 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors duration-200 flex items-center gap-1">
+              <X size={13} /> Cancelar
+            </button>
+          )}
         </div>
       </form>
 
@@ -109,9 +145,19 @@ export default function ChargeTimeline({ charge, onChargeUpdate, reloadSignal })
                 </div>
                 {i < items.length - 1 && <div className="w-px flex-1 bg-border my-1" />}
               </div>
-              <div className="pb-5 min-w-0">
+              <div className="pb-5 min-w-0 flex-1">
                 <p className="text-xs text-muted-foreground">{T.label} · {fmtDT(it.created_at)}</p>
                 <p className="text-sm mt-0.5 leading-relaxed">{it.note}</p>
+              </div>
+              <div className="flex gap-1 self-start opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                <button onClick={() => startEdit(it)} data-testid={`timeline-edit-${it.id}`} title="Editar registo"
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-brand hover:bg-brand-soft transition-colors duration-200">
+                  <Pencil size={13} />
+                </button>
+                <button onClick={() => removeItem(it)} data-testid={`timeline-delete-${it.id}`} title="Apagar registo"
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors duration-200">
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
           );

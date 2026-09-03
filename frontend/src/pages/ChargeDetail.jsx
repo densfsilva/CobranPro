@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MessageCircle, Mail, Phone, User, FileText, Trash2, CheckCircle2, Clock, Handshake } from "lucide-react";
+import { ArrowLeft, MessageCircle, Mail, Phone, User, FileText, Trash2, CheckCircle2, Clock, Handshake, Pencil, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
@@ -11,6 +11,7 @@ import MessageModal from "@/components/MessageModal";
 import ChargeTimeline from "@/components/ChargeTimeline";
 import ChargeDocuments from "@/components/ChargeDocuments";
 import NegotiationCard from "@/components/NegotiationCard";
+import ChargeFormDialog from "@/components/ChargeFormDialog";
 
 export default function ChargeDetail() {
   const { id } = useParams();
@@ -19,6 +20,7 @@ export default function ChargeDetail() {
   const [charge, setCharge] = useState(null);
   const [modal, setModal] = useState(null); // 'whatsapp' | 'email' | null
   const [timelineTick, setTimelineTick] = useState(0);
+  const [formOpen, setFormOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -45,7 +47,7 @@ export default function ChargeDetail() {
     try {
       const { data } = await api.put(`/charges/${id}`, { ...charge, status: s });
       setCharge(data);
-      const msgs = { paga: "Cobrança marcada como paga", negociacao: "Cobrança movida para Em Negociação", pendente: "Cobrança de volta ao fluxo ativo" };
+      const msgs = { paga: "Cobrança marcada como paga", negociacao: "Cobrança movida para Em Negociação", pendente: "Cobrança de volta ao fluxo ativo", cancelada: "Cobrança cancelada" };
       toast.success(msgs[s]);
     } catch (err) {
       toast.error(formatApiError(err));
@@ -81,7 +83,7 @@ export default function ChargeDetail() {
         </div>
         {isAdmin && (
         <div className="flex gap-2 flex-wrap">
-          {charge.status !== "paga" && (
+          {!["paga", "cancelada"].includes(charge.status) && (
             <button onClick={() => setStatus("paga")} disabled={busy} data-testid="toggle-paid-btn"
               className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 transition-all duration-200">
               <CheckCircle2 size={16} /> Marcar como Paga
@@ -99,10 +101,20 @@ export default function ChargeDetail() {
               <Clock size={16} /> Retomar Cobrança
             </button>
           )}
-          {charge.status === "paga" && (
+          {(charge.status === "paga" || charge.status === "cancelada") && (
             <button onClick={() => setStatus("pendente")} disabled={busy} data-testid="reopen-btn"
               className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-border text-muted-foreground hover:bg-secondary transition-all duration-200">
               <Clock size={16} /> Reabrir
+            </button>
+          )}
+          <button onClick={() => setFormOpen(true)} disabled={busy} data-testid="edit-charge-btn"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-brand/40 text-brand hover:bg-brand-soft transition-all duration-200">
+            <Pencil size={16} /> Editar
+          </button>
+          {!["paga", "cancelada"].includes(charge.status) && (
+            <button onClick={() => setStatus("cancelada")} disabled={busy} data-testid="cancel-charge-btn"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-slate-500/40 text-slate-400 hover:bg-slate-500/10 transition-all duration-200">
+              <XCircle size={16} /> Cancelar
             </button>
           )}
           <button onClick={remove} data-testid="delete-charge-btn"
@@ -119,8 +131,13 @@ export default function ChargeDetail() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
             {[
               ["Email", charge.debtor_email || "—"],
+              ["Email 2", charge.debtor_email2 || "—"],
               [t("mobile"), charge.debtor_phone || "—"],
+              ["WhatsApp", charge.whatsapp || "—"],
               [idLabel(), charge.debtor_nif || "—"],
+              ["Conta Bancária 1", charge.bank1 || "—"],
+              ["Conta Bancária 2", charge.bank2 || "—"],
+              ["Endereço", [charge.addr_rua, charge.addr_localidade, charge.addr_cp, charge.addr_estado].filter(Boolean).join(", ") || "—"],
               ["Registada em", fmtDate(charge.created_at?.slice(0, 10))],
             ].map(([label, value]) => (
               <div key={label}>
@@ -171,6 +188,7 @@ export default function ChargeDetail() {
       </div>
 
       <MessageModal channel={modal} charge={charge} open={!!modal} onOpenChange={() => setModal(null)} onLogged={() => setTimelineTick((n) => n + 1)} />
+      <ChargeFormDialog open={formOpen} onOpenChange={setFormOpen} charge={charge} onSaved={load} />
     </div>
   );
 }

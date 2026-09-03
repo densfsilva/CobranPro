@@ -146,11 +146,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="bg-card border border-border rounded-xl p-5 flex flex-col">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">Antiguidade da Dívida Pendente</p>
-          <div className="flex-1 min-h-[260px] w-full" data-testid="aging-chart" ref={chartRef}>
+          <div className="h-[260px] w-full" data-testid="aging-chart" ref={chartRef}>
             {chartSize && (
               <BarChart width={chartSize.width} height={chartSize.height} data={chartData} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#8b94a7" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#8b94a7" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#8b94a7" }} axisLine={false} tickLine={false} allowDecimals={false} domain={[0, (dataMax) => Math.max(Math.ceil(dataMax) + 1, 5)]} />
                 <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ background: "#111827", border: "1px solid #1F2937", borderRadius: 8, fontSize: 12 }} />
                 <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                   {chartData.map((d, i) => <Cell key={i} fill={d.fill} />)}
@@ -173,7 +173,7 @@ export default function Dashboard() {
               />
             </div>
             <div className="flex gap-1.5 flex-wrap">
-              {["todas", "verde", "amarelo", "vermelho", "roxo", "negociacao", "paga"].map((b) => (
+              {["todas", "verde", "amarelo", "vermelho", "roxo", "negociacao", "paga", "cancelada"].map((b) => (
                 <button
                   key={b}
                   data-testid={`debtor-filter-${b}`}
@@ -217,7 +217,7 @@ export default function Dashboard() {
                     <td className="py-3 pr-3 text-right font-mono-num font-semibold">{money(c.amount)}</td>
                     <td className="py-3 text-right">
                       <span data-testid={`debtor-badge-${c.id}`} className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${BUCKETS[c.bucket].cls}`}>
-                        {c.status === "paga" ? "Paga" : c.bucket === "por_vencer" ? "Por Vencer" : c.bucket === "negociacao" ? "Em Negociação" : `${c.days_overdue}d atraso`}
+                        {c.status === "paga" ? "Paga" : c.bucket === "por_vencer" ? "Por Vencer" : c.bucket === "negociacao" ? "Em Negociação" : c.bucket === "cancelada" ? "Cancelada" : `${c.days_overdue}d atraso`}
                       </span>
                     </td>
                     <td className="py-3 pl-2 text-right">

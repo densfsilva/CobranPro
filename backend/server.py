@@ -104,6 +104,9 @@ def compute_aging(charge: dict) -> dict:
     elif charge.get("status") == "negociacao":
         bucket = "negociacao"
         days = max(days, 0)
+    elif charge.get("status") == "cancelada":
+        bucket = "cancelada"
+        days = max(days, 0)
     elif days <= 0:
         bucket = "por_vencer"
         days = 0
@@ -182,6 +185,14 @@ class ChargeInput(BaseModel):
     debtor_email: Optional[str] = ""
     debtor_phone: Optional[str] = ""
     debtor_nif: Optional[str] = ""
+    debtor_email2: Optional[str] = ""
+    whatsapp: Optional[str] = ""
+    bank1: Optional[str] = ""
+    bank2: Optional[str] = ""
+    addr_rua: Optional[str] = ""
+    addr_localidade: Optional[str] = ""
+    addr_cp: Optional[str] = ""
+    addr_estado: Optional[str] = ""
     invoice_number: str = Field(min_length=1, max_length=60)
     amount: float = Field(gt=0)
     due_date: str
@@ -405,7 +416,7 @@ async def create_charge(data: ChargeInput, ctx: dict = Depends(require_admin)):
                 raise HTTPException(status_code=400, detail=f"{label} inválida (AAAA-MM-DD)")
     if data.agreed_amount is not None and data.agreed_amount <= 0:
         raise HTTPException(status_code=400, detail="Valor acordado tem de ser positivo")
-    if data.status not in ("pendente", "paga", "negociacao"):
+    if data.status not in ("pendente", "paga", "negociacao", "cancelada"):
         raise HTTPException(status_code=400, detail="Estado inválido")
     charge = data.model_dump()
     charge.update({
@@ -434,7 +445,7 @@ async def get_charge(charge_id: str, company: dict = Depends(get_current_company
 async def update_charge(charge_id: str, data: ChargeInput, ctx: dict = Depends(require_admin)):
     company = ctx["company"]
     existing = await get_owned_charge(charge_id, company)
-    if data.status not in ("pendente", "paga", "negociacao"):
+    if data.status not in ("pendente", "paga", "negociacao", "cancelada"):
         raise HTTPException(status_code=400, detail="Estado inválido")
     updates = data.model_dump()
     if data.status == "paga" and existing.get("status") != "paga":
@@ -487,6 +498,28 @@ async def add_interaction(charge_id: str, data: InteractionInput, company: dict 
     await db.interactions.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+
+@api_router.put("/interactions/{interaction_id}")
+async def update_interaction(interaction_id: str, data: InteractionInput, ctx: dict = Depends(get_current_context)):
+    if data.type not in INTERACTION_TYPES:
+        raise HTTPException(status_code=400, detail="Tipo de contacto inválido")
+    result = await db.interactions.update_one(
+        {"id": interaction_id, "company_id": ctx["company"]["id"]},
+        {"$set": {"type": data.type, "note": data.note.strip()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Registo não encontrado")
+    doc = await db.interactions.find_one({"id": interaction_id}, {"_id": 0})
+    return doc
+
+
+@api_router.delete("/interactions/{interaction_id}")
+async def delete_interaction(interaction_id: str, ctx: dict = Depends(get_current_context)):
+    result = await db.interactions.delete_one({"id": interaction_id, "company_id": ctx["company"]["id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Registo não encontrado")
+    return {"ok": True}
 
 
 # ---------- Documents (Anexos) ----------
@@ -1064,7 +1097,7 @@ async def dashboard(ctx: dict = Depends(require_admin)):
     today_iso = date.today().isoformat()
     followups = []
     for c in charges:
-        if c["status"] == "paga":
+        if c["status"] in ("paga", "cancelada"):
             continue
         if c.get("next_contact_date") and c["next_contact_date"] <= today_iso:
             followups.append({

@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only E2E (Playwright, admin denis.ferreira0909@gmail.com) das 7 frentes da iteração final. PASSOU: branding fixo (login-logo e system-logo = /logo-rect.png, natural 1666x397; favicon link rel=icon -> /logo-square.png; title 'Cobranpro | Gestão de Cobranças'; logo da empresa continua isolado na sidebar data-testid=company-logo-img), agrupamento por cliente em Pendentes (5 grupos com totais + colapsar/expandir + clique na linha abre a ficha), edição na ficha (edit-charge-btn abre dialog pré-preenchido com os 15 campos incl. WhatsApp/Email2/Conta1-2/Rua/Localidade/CP/Distrito; guardar atualizou valor 7 777,77 €, Rua Teste 12/Porto e WhatsApp e revertido), timeline (editar prefill + guardar atualiza texto, apagar remove registo, botões visíveis no hover), Cancelados (cancel-charge-btn -> badge Cancelada, aparece em /cancelados, sai de Pendentes 5->4 e do KPI Total em Dívida 15 341,25 -> 7 720,50 €; 'Reabrir' (data-testid=reopen-btn) devolveu a pendente; dados demo deixados limpos: cancelados=0, pendentes=5), e 0 erros de consola/pageerror em todos os fluxos. FALHOU: o bug do gráfico do Dashboard NÃO está corrigido — o gráfico continua 'gigante'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Dashboard / aging-chart", "issue": "BUG PERSISTE: gráfico gigante. O container ref (className 'flex-1 min-h-[260px]') estica-se à altura da linha do grid (definida pela tabela de devedores ao lado), pelo que o ResizeObserver mede height=566px e o BarChart é renderizado com height=566 (svg attrH=566). Barras com valor 1 ficam com 107px de altura e o cartão 'Antiguidade da Dívida Pendente' ultrapassa a viewport (medido @1280 e @1920: box h=566 em ambos). Fix sugerido: altura fixa/limitada no container (ex. h-[260px] ou style maxHeight) em vez de flex-1, ou usar apenas a largura do observer com height constante", "selector": "[data-testid=\"aging-chart\"]", "priority": "HIGH"},
+      {"component": "ChargeFormDialog / ChargeTimeline (datas)", "issue": "Inputs de data são o date picker nativo do browser com formato en-US (mostra '06/13/2026' e placeholder 'mm/dd/yyyy') numa app PT/BR — devia usar o componente Calendar do shadcn ou pelo menos formato dd/mm/aaaa", "selector": "[data-testid=\"charge-form-due-date\"], [data-testid=\"next-contact-input\"]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard", "issues": ["Cartão do gráfico de antiguidade desproporcionalmente alto (ver bug acima): eixo Y com ticks 0/2/4/5 espalhados por 566px e barras enormes junto ao fundo, cortadas na dobra da viewport"]}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_5.json"],
+  "action_items": [
+    "Corrigir a altura do container do aging-chart (não usar flex-1 num cartão que estica com o grid) — o bug reportado do 'gráfico gigante' continua reproduzível em 1280px e 1920px",
+    "Substituir inputs de data nativos por Calendar shadcn / formato pt-PT em ChargeFormDialog e no Próximo Contacto"
+  ],
+  "critical_code_review_comments": [
+    "Dashboard.jsx L149: 'flex-1 min-h-[260px]' + ResizeObserver produz altura ilimitada; o YAxis domain [0, max(dataMax+1,5)] corrige a escala mas não a altura renderizada",
+    "Nota: nos testes os data-testid reais divergem do pedido de review — submit do form é 'charge-form-submit' (não 'charge-form-submit-btn') e reabrir é 'reopen-btn' (não 'reopen-charge-btn'); login usa 'auth-email-input'/'auth-password-input'/'auth-submit-btn'"
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (per request)", "frontend": "6/7 frentes OK (~86%)"},
+  "seed_data_creation": "Nenhum dado novo persistido. Alterações temporárias (valor 7777.77, Rua/Localidade/WhatsApp em FT-2025/112, registo de timeline 'TESTE QA') foram revertidas/apagadas; cobrança cancelada foi reaberta (cancelados=0, pendentes=5).",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "admin denis.ferreira0909@gmail.com / Cobrancas2026! (de /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "Testids corretos: auth-email-input/auth-password-input/auth-submit-btn; charge-form-submit; reopen-btn; cancelado-row-{id}. Grupos em Pendentes: 5 clientes com 1 fatura cada — o agrupamento multi-fatura por cliente não pôde ser validado com os dados demo atuais (criar 2 faturas do mesmo cliente para cobertura). Após qualquer fix do gráfico, medir document.querySelector('[data-testid=\"aging-chart\"] svg').getBoundingClientRect() — deve ficar ~260-300px de altura.",
+  "rca_of_the_issue": "O gráfico é renderizado com width/height explícitos vindos do ResizeObserver sobre um div 'flex-1 min-h-[260px]'. Como o cartão está numa grid xl:grid-cols-3 cuja altura de linha é ditada pelo cartão de devedores (tabela longa, ~600px), o div estica e o observer devolve height≈566 → BarChart height=566 → barras de valor 1 com 107px e gráfico 'gigante'. O domínio explícito do YAxis eliminou os warnings width(-1)/height(-1) mas não a altura excessiva."
+}

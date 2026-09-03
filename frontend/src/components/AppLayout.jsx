@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Clock, Handshake, History, FileBarChart, Users, Settings, LogOut, Wallet } from "lucide-react";
+import { LayoutDashboard, Clock, Handshake, History, XCircle, FileBarChart, Users, Settings, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
 
@@ -8,6 +8,7 @@ const NAV = [
   { to: "/pendentes", label: "Pendentes", icon: Clock, testid: "nav-pendentes" },
   { to: "/negociacao", label: "Em Negociação", icon: Handshake, testid: "nav-negociacao" },
   { to: "/recebidos", label: "Recebidos", icon: History, testid: "nav-recebidos" },
+  { to: "/cancelados", label: "Cancelados", icon: XCircle, testid: "nav-cancelados" },
   { to: "/relatorios", label: "Relatórios", icon: FileBarChart, testid: "nav-relatorios", admin: true },
   { to: "/equipa", labelKey: "team", icon: Users, testid: "nav-equipa", admin: true },
   { to: "/configuracoes", label: "Configurações", icon: Settings, testid: "nav-configuracoes", admin: true },
@@ -84,10 +85,7 @@ export default function AppLayout({ children }) {
       </aside>
       <main className="flex-1 min-w-0">
         <header className="h-[72px] border-b border-border flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 bg-background/80 backdrop-blur-xl z-10">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Wallet size={16} className="text-brand" />
-            <span className="hidden sm:inline">Cobranpro</span>
-          </div>
+          <img src="/logo-rect.png" alt="Cobranpro" className="h-7 w-auto object-contain" data-testid="system-logo" />
           <div className="flex items-center gap-3">
             <span className="hidden sm:inline text-sm text-muted-foreground">{user?.full_name || company.email}</span>
             <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${isAdmin ? "bg-brand-soft text-brand" : "bg-secondary text-muted-foreground"}`} data-testid="user-role-badge">

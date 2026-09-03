@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Clock, Plus, Printer } from "lucide-react";
+import { Search, Clock, Plus, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { BUCKETS, fmtDate, statusLabelOf } from "@/lib/badges";
 import { money } from "@/lib/format";
@@ -36,6 +36,21 @@ export default function PendingCharges() {
   }, [charges, search]);
 
   const total = pendentes.reduce((s, c) => s + c.amount, 0);
+
+  const [expanded, setExpanded] = useState({});
+  const groups = useMemo(() => {
+    const map = new Map();
+    for (const c of pendentes) {
+      if (!map.has(c.debtor_name)) map.set(c.debtor_name, []);
+      map.get(c.debtor_name).push(c);
+    }
+    return [...map.entries()].map(([name, items]) => ({
+      name,
+      items,
+      doc: items[0]?.debtor_nif || "",
+      total: items.reduce((s, c) => s + c.amount, 0),
+    }));
+  }, [pendentes]);
 
   return (
     <div className="space-y-6" data-testid="pendentes-page">
@@ -96,16 +111,37 @@ export default function PendingCharges() {
               </tr>
             </thead>
             <tbody>
-              {pendentes.map((c) => (
+              {groups.map((g, gi) => {
+                const isOpen = expanded[gi] !== false;
+                return (
+                  <Fragment key={g.name}>
+                    <tr
+                      data-testid={`debtor-group-${gi}`}
+                      onClick={() => setExpanded({ ...expanded, [gi]: !isOpen })}
+                      className="bg-secondary/40 cursor-pointer hover:bg-secondary/70 transition-colors duration-150 border-b border-border"
+                    >
+                      <td className="py-3 pr-3" colSpan={3}>
+                        <span className="flex items-center gap-2 font-semibold">
+                          {isOpen ? <ChevronDown size={15} className="text-brand shrink-0" /> : <ChevronRight size={15} className="text-muted-foreground shrink-0" />}
+                          {g.name}
+                          <span className="text-xs font-normal text-muted-foreground">{g.doc}</span>
+                        </span>
+                      </td>
+                      <td className="py-3 pr-3 text-right font-mono-num font-bold text-brand" data-testid={`debtor-group-total-${gi}`}>{money(g.total)}</td>
+                      <td className="py-3 text-right text-xs text-muted-foreground">
+                        {g.items.length} {g.items.length === 1 ? t("invoiceLower") : t("invoiceLowerPlural")}
+                      </td>
+                      <td />
+                    </tr>
+                    {isOpen && g.items.map((c) => (
                 <tr
                   key={c.id}
                   data-testid={`pendente-row-${c.id}`}
                   onClick={() => navigate(`/cobranca/${c.id}`)}
                   className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-secondary/50 transition-colors duration-150"
                 >
-                  <td className="py-3 pr-3">
-                    <p className="font-medium">{c.debtor_name}</p>
-                    <p className="text-xs text-muted-foreground">{c.debtor_nif || "—"}</p>
+                  <td className="py-3 pl-6 pr-3">
+                    <p className="font-medium text-sm">{c.debtor_name}</p>
                   </td>
                   <td className="py-3 pr-3 font-mono-num text-xs">{c.invoice_number}</td>
                   <td className="py-3 pr-3 text-muted-foreground">{fmtDate(c.due_date)}</td>
@@ -119,7 +155,10 @@ export default function PendingCharges() {
                     <WhatsAppQuickButton charge={c} />
                   </td>
                 </tr>
-              ))}
+                    ))}
+                  </Fragment>
+                );
+              })}
               {pendentes.length === 0 && (
                 <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="pendentes-empty-state">Sem cobranças pendentes. Bom trabalho!</td></tr>
               )}
