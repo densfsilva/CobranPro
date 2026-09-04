@@ -6,7 +6,7 @@ import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t, invoiceWord } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
-import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
+import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
 
 export default function CancelledCharges() {
   const [charges, setCharges] = useState([]);
@@ -107,7 +107,7 @@ export default function CancelledCharges() {
       <PrintReport title={`${t("invoicePlural")} Canceladas`} subtitle={search ? `Filtro: "${search}"` : "Todas as canceladas"} testid="print-report-cancelados">
         <table style={printTableStyle}>
           <thead>
-            <tr>{["Cliente", t("invoice"), "Vencimento", "Valor", "Estado"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+            <tr>{["Cliente", t("invoice"), "Vencimento", "Valor", "Estado"].map((h) => <th key={h} style={h === "Valor" ? printThRightStyle : printThStyle}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {canceladas.map((c) => (

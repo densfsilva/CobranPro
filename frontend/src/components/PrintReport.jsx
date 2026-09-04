@@ -31,6 +31,7 @@ export default function PrintReport({ title, subtitle, active = true, testid = "
   );
 }
 
-export const printTableStyle = { width: "100%", borderCollapse: "collapse", fontSize: 12 };
-export const printThStyle = { textAlign: "left", borderBottom: "2px solid #0f172a", padding: "6px 8px" };
-export const printTdStyle = { borderBottom: "1px solid #e2e8f0", padding: "6px 8px" };
+export const printTableStyle = { width: "100%", borderCollapse: "collapse", fontSize: 12, marginTop: 4 };
+export const printThStyle = { textAlign: "left", borderBottom: "2px solid #0f172a", padding: "8px 10px", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "#334155", background: "#f1f5f9" };
+export const printThRightStyle = { ...printThStyle, textAlign: "right" };
+export const printTdStyle = { borderBottom: "1px solid #e2e8f0", padding: "8px 10px", verticalAlign: "top" };

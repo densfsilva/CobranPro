@@ -1,8 +1,9 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, TrendingUp, AlertTriangle, CheckCircle2, Banknote, PhoneCall, MessageCircle, Mail, StickyNote, Printer } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
+import { Plus, Search, TrendingUp, AlertTriangle, CheckCircle2, Banknote, PhoneCall, MessageCircle, Mail, StickyNote, Printer, ChevronDown, ChevronRight } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer } from "recharts";
 import { api } from "@/lib/api";
+import { notifyDailyTasks } from "@/lib/notifications";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -27,8 +28,6 @@ const ACT_ICONS = { chamada: PhoneCall, whatsapp: MessageCircle, email: Mail, no
 export default function Dashboard() {
   const { company } = useAuth();
   const [stats, setStats] = useState(null);
-  const chartRef = useRef(null);
-  const [chartSize, setChartSize] = useState(null);
   const [charges, setCharges] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("todas");
@@ -42,16 +41,14 @@ export default function Dashboard() {
   };
 
   useEffect(() => { load(); }, []);
+  const [chartReady, setChartReady] = useState(false);
   useEffect(() => {
-    const el = chartRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) setChartSize({ width: Math.floor(width), height: Math.floor(height) });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+    const id = requestAnimationFrame(() => setChartReady(true));
+    return () => cancelAnimationFrame(id);
   }, []);
+  useEffect(() => {
+    if (stats) notifyDailyTasks(stats.followups, company?.id);
+  }, [stats]);
 
   const filtered = useMemo(() => {
     return charges.filter((c) => {
@@ -62,6 +59,21 @@ export default function Dashboard() {
       return matchSearch && matchFilter;
     });
   }, [charges, search, filter]);
+
+  const [expanded, setExpanded] = useState({});
+  const groups = useMemo(() => {
+    const map = new Map();
+    for (const c of filtered) {
+      if (!map.has(c.debtor_name)) map.set(c.debtor_name, []);
+      map.get(c.debtor_name).push(c);
+    }
+    return [...map.entries()].map(([name, items]) => ({
+      name,
+      items,
+      doc: items[0]?.debtor_nif || "",
+      total: items.reduce((s, c) => s + c.amount, 0),
+    }));
+  }, [filtered]);
 
   const chartData = stats
     ? ["verde", "amarelo", "vermelho", "roxo"].map((b) => ({ name: BUCKETS[b].label.split(" (")[0], count: stats.buckets[b] || 0, fill: BUCKETS[b].hex }))
@@ -144,11 +156,12 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5 flex flex-col">
+        <div className="bg-card border border-border rounded-xl p-5 flex flex-col self-start">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">Antiguidade da Dívida Pendente</p>
-          <div className="h-[260px] w-full" data-testid="aging-chart" ref={chartRef}>
-            {chartSize && (
-              <BarChart width={chartSize.width} height={chartSize.height} data={chartData} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
+          <div className="h-[260px] w-full" data-testid="aging-chart">
+            {chartReady && chartData.length > 0 && (
+            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 480, height: 260 }}>
+              <BarChart data={chartData} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#8b94a7" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#8b94a7" }} axisLine={false} tickLine={false} allowDecimals={false} domain={[0, (dataMax) => Math.max(Math.ceil(dataMax) + 1, 5)]} />
                 <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ background: "#111827", border: "1px solid #1F2937", borderRadius: 8, fontSize: 12 }} />
@@ -156,6 +169,7 @@ export default function Dashboard() {
                   {chartData.map((d, i) => <Cell key={i} fill={d.fill} />)}
                 </Bar>
               </BarChart>
+            </ResponsiveContainer>
             )}
           </div>
         </div>
@@ -201,30 +215,54 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c) => (
-                  <tr
-                    key={c.id}
-                    data-testid={`debtor-row-${c.id}`}
-                    onClick={() => navigate(`/cobranca/${c.id}`)}
-                    className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-secondary/50 transition-colors duration-150"
-                  >
-                    <td className="py-3 pr-3">
-                      <p className="font-medium">{c.debtor_name}</p>
-                      <p className="text-xs text-muted-foreground">{c.debtor_nif || "—"}</p>
-                    </td>
-                    <td className="py-3 pr-3 font-mono-num text-xs">{c.invoice_number}</td>
-                    <td className="py-3 pr-3 text-muted-foreground">{fmtDate(c.due_date)}</td>
-                    <td className="py-3 pr-3 text-right font-mono-num font-semibold">{money(c.amount)}</td>
-                    <td className="py-3 text-right">
-                      <span data-testid={`debtor-badge-${c.id}`} className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${BUCKETS[c.bucket].cls}`}>
-                        {c.status === "paga" ? "Paga" : c.bucket === "por_vencer" ? "Por Vencer" : c.bucket === "negociacao" ? "Em Negociação" : c.bucket === "cancelada" ? "Cancelada" : `${c.days_overdue}d atraso`}
-                      </span>
-                    </td>
-                    <td className="py-3 pl-2 text-right">
-                      <WhatsAppQuickButton charge={c} />
-                    </td>
-                  </tr>
-                ))}
+                {groups.map((g, gi) => {
+                  const isOpen = expanded[gi] !== false;
+                  return (
+                    <Fragment key={g.name}>
+                      <tr
+                        data-testid={`dash-group-${gi}`}
+                        onClick={() => setExpanded({ ...expanded, [gi]: !isOpen })}
+                        className="bg-secondary/40 cursor-pointer hover:bg-secondary/70 transition-colors duration-150 border-b border-border"
+                      >
+                        <td className="py-3 pr-3" colSpan={3}>
+                          <span className="flex items-center gap-2 font-semibold">
+                            {isOpen ? <ChevronDown size={15} className="text-brand shrink-0" /> : <ChevronRight size={15} className="text-muted-foreground shrink-0" />}
+                            {g.name}
+                            <span className="text-xs font-normal text-muted-foreground">{g.doc}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 pr-3 text-right font-mono-num font-bold text-brand" data-testid={`dash-group-total-${gi}`}>{money(g.total)}</td>
+                        <td className="py-3 text-right text-xs text-muted-foreground">
+                          {g.items.length} {g.items.length === 1 ? t("invoiceLower") : t("invoiceLowerPlural")}
+                        </td>
+                        <td />
+                      </tr>
+                      {isOpen && g.items.map((c) => (
+                        <tr
+                          key={c.id}
+                          data-testid={`debtor-row-${c.id}`}
+                          onClick={() => navigate(`/cobranca/${c.id}`)}
+                          className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-secondary/50 transition-colors duration-150"
+                        >
+                          <td className="py-3 pl-6 pr-3">
+                            <p className="font-medium text-sm">{c.debtor_name}</p>
+                          </td>
+                          <td className="py-3 pr-3 font-mono-num text-xs">{c.invoice_number}</td>
+                          <td className="py-3 pr-3 text-muted-foreground">{fmtDate(c.due_date)}</td>
+                          <td className="py-3 pr-3 text-right font-mono-num font-semibold">{money(c.amount)}</td>
+                          <td className="py-3 text-right">
+                            <span data-testid={`debtor-badge-${c.id}`} className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${BUCKETS[c.bucket].cls}`}>
+                              {c.status === "paga" ? "Paga" : c.bucket === "por_vencer" ? "Por Vencer" : c.bucket === "negociacao" ? "Em Negociação" : c.bucket === "cancelada" ? "Cancelada" : `${c.days_overdue}d atraso`}
+                            </span>
+                          </td>
+                          <td className="py-3 pl-2 text-right">
+                            <WhatsAppQuickButton charge={c} />
+                          </td>
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
                 {filtered.length === 0 && (
                   <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="debtor-empty-state">Sem cobranças para os filtros selecionados.</td></tr>
                 )}

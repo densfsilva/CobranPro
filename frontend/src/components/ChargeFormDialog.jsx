@@ -33,6 +33,17 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
+  const lookupClient = async () => {
+    if (charge || !form.debtor_nif.trim()) return;
+    try {
+      const { data } = await api.get("/charges/lookup-client", { params: { nif: form.debtor_nif } });
+      if (data.found && data.client) {
+        setForm((prev) => ({ ...prev, ...data.client }));
+        toast.success("Cliente existente — dados preenchidos automaticamente");
+      }
+    } catch { /* lookup silencioso */ }
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
@@ -84,7 +95,7 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
             <div key={key} className={`space-y-1.5 ${key === "debtor_name" ? "sm:col-span-2" : ""}`}>
               <Label htmlFor={key}>{label}</Label>
               <Input id={key} data-testid={`charge-form-${key.replace(/_/g, "-")}`} type={type} step={type === "number" ? "0.01" : undefined}
-                required={req} value={form[key]} onChange={set(key)} placeholder={ph} className="bg-background" />
+                required={req} value={form[key]} onChange={set(key)} onBlur={key === "debtor_nif" ? lookupClient : undefined} placeholder={ph} className="bg-background" />
             </div>
           ))}
           <div className="space-y-1.5 sm:col-span-2">

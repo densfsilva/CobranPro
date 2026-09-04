@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Clock, Handshake, History, XCircle, FileBarChart, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Clock, Handshake, History, XCircle, FileBarChart, Users, Settings, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
 
@@ -12,6 +12,7 @@ const NAV = [
   { to: "/relatorios", label: "Relatórios", icon: FileBarChart, testid: "nav-relatorios", admin: true },
   { to: "/equipa", labelKey: "team", icon: Users, testid: "nav-equipa", admin: true },
   { to: "/configuracoes", label: "Configurações", icon: Settings, testid: "nav-configuracoes", admin: true },
+  { to: "/super-admin", label: "Super Admin", icon: ShieldCheck, testid: "nav-super-admin", super: true },
 ];
 
 export default function AppLayout({ children }) {
@@ -43,7 +44,7 @@ export default function AppLayout({ children }) {
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {NAV.filter((n) => !n.admin || isAdmin).map(({ to, label, labelKey, icon: Icon, testid }) => {
+          {NAV.filter((n) => (!n.admin || isAdmin) && (!n.super || user?.is_super_admin)).map(({ to, label, labelKey, icon: Icon, testid }) => {
             const resolvedLabel = labelKey ? t(labelKey) : label;
             const active = location.pathname === to;
             return (

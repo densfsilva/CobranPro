@@ -10,7 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
 import ImportPdfDialog from "@/components/ImportPdfDialog";
 import WhatsAppQuickButton from "@/components/WhatsAppQuickButton";
-import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
+import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
 
 export default function PendingCharges() {
   const { isAdmin } = useAuth();
@@ -174,7 +174,7 @@ export default function PendingCharges() {
       >
         <table style={printTableStyle}>
           <thead>
-            <tr>{["Devedor", "Factura", "Vencimento", "Dias", "Valor", "Estado"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+            <tr>{["Devedor", "Factura", "Vencimento", "Dias", "Valor", "Estado"].map((h) => <th key={h} style={h === "Valor" ? printThRightStyle : printThStyle}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {pendentes.map((c) => (

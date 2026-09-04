@@ -22,6 +22,17 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-04 — Iteração 16: Consolidação final + Super Admin (CONCLUÍDA)
+- Agrupamento por cliente também no Dashboard (dash-group-{i} com total + colapsar); Pendentes já agrupava
+- Auto-preenchimento por NIF/CNPJ: GET /api/charges/lookup-client?nif= (admin, compara só dígitos) preenche Nome/Emails/Contactos/Bancos/Endereço no blur do campo NIF em Nova Cobrança
+- Coluna "Recebimento" (paid_at) em Recebidos, no ecrã e no PDF
+- Gráfico do Dashboard migrado para ResponsiveContainer (altura fixa 260px, cartão self-start, gate rAF elimina warnings width(-1))
+- PDFs: estilos de impressão profissionais (th uppercase com fundo, padding maior) + cabeçalhos de valores alinhados à direita (printThRightStyle) em todas as abas e Relatórios
+- WhatsApp quick button: mensagem com assinatura "— {Empresa} · Cobranpro"
+- Notificações PWA locais: lib/notifications.js notifyDailyTasks (Notification API, 1x/dia por empresa) alerta promessas vencidas/a vencer hoje no Dashboard
+- SUPER ADMIN: SUPER_ADMIN_EMAIL em backend/.env; GET /api/superadmin/companies + PUT /api/superadmin/companies/{id}/status {blocked}; empresa bloqueada recebe 403 "A sua conta está suspensa. Atualize o seu plano..." no login e em qualquer API; proteção contra auto-bloqueio; página /super-admin (lista de tenants, pesquisa, AlertDialog de confirmação) visível só para is_super_admin; serialize_user devolve is_super_admin
+- Testes: 57/57 backend pytest + 8/8 frentes frontend (iteration_6.json); nits corrigidos (whitespace do cartão, warnings recharts, alinhamento th, window.confirm→AlertDialog, namespace notificações)
+
 ### 2026-09-03 — Deployment health check
 - deployment_agent: PASS (0 findings) — envs/CORS/compilação/supervisor OK; deployment iniciado de forma assíncrona
 

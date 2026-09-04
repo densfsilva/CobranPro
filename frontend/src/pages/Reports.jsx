@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
-import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
+import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -239,7 +239,7 @@ export default function Reports() {
                 <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>Acordos em Negociação</p>
                 <table style={{ ...printTableStyle, marginBottom: 20 }}>
                   <thead>
-                    <tr>{["Cliente", "Documento", "Valor", "Acordado", "Promessa", "Observações"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+                    <tr>{["Cliente", "Documento", "Valor", "Acordado", "Promessa", "Observações"].map((h) => <th key={h} style={["Valor", "Acordado"].includes(h) ? printThRightStyle : printThStyle}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {weekly.negotiations.map((n, i) => (

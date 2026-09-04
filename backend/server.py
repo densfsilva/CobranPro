@@ -35,6 +35,8 @@ db = client[os.environ['DB_NAME']]
 
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = "HS256"
+SUPER_ADMIN_EMAIL = os.environ.get('SUPER_ADMIN_EMAIL', '').lower()
+BLOCKED_MESSAGE = "A sua conta está suspensa. Atualize o seu plano para continuar a utilizar o Cobranpro."
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -74,6 +76,7 @@ def serialize_user(doc: dict) -> dict:
         "cargo": doc.get("cargo", ""),
         "departamento": doc.get("departamento", ""),
         "photo_base64": doc.get("photo_base64", ""),
+        "is_super_admin": bool(SUPER_ADMIN_EMAIL) and doc["email"].lower() == SUPER_ADMIN_EMAIL,
         "created_at": doc.get("created_at"),
     }
 
@@ -134,6 +137,8 @@ async def get_current_context(creds: HTTPAuthorizationCredentials = Depends(secu
         company = await db.companies.find_one({"id": user["company_id"]}, {"_id": 0})
         if not company:
             raise HTTPException(status_code=401, detail="Empresa não encontrada")
+        if company.get("blocked"):
+            raise HTTPException(status_code=403, detail=BLOCKED_MESSAGE)
         return {"user": user, "company": company}
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Sessão expirada")
@@ -218,6 +223,7 @@ async def register(data: RegisterInput):
         "nif": "",
         "iban": "",
         "country": "PT",
+        "blocked": False,
         "google_client_id": "",
         "primary_color": "#2563EB",
         "logo_base64": "",
@@ -267,6 +273,8 @@ async def login(data: LoginInput, request: Request):
     company = await db.companies.find_one({"id": user["company_id"]}, {"_id": 0})
     if not company:
         raise HTTPException(status_code=401, detail="Empresa não encontrada")
+    if company.get("blocked"):
+        raise HTTPException(status_code=403, detail=BLOCKED_MESSAGE)
     return {"token": create_token(user["id"], email, company["id"], user["role"]), "company": serialize_company(company), "user": serialize_user(user)}
 
 
@@ -427,6 +435,21 @@ async def create_charge(data: ChargeInput, ctx: dict = Depends(require_admin)):
     await db.charges.insert_one(charge)
     charge.pop("_id", None)
     return compute_aging(charge)
+
+
+CLIENT_COPY_FIELDS = ("debtor_name", "debtor_email", "debtor_email2", "debtor_phone", "whatsapp", "debtor_nif", "bank1", "bank2", "addr_rua", "addr_localidade", "addr_cp", "addr_estado")
+
+
+@api_router.get("/charges/lookup-client")
+async def lookup_client(nif: str = "", ctx: dict = Depends(require_admin)):
+    nif_clean = re.sub(r"\D", "", nif or "")
+    if len(nif_clean) < 5:
+        return {"found": False}
+    charges = await db.charges.find({"company_id": ctx["company"]["id"]}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    for ch in charges:
+        if re.sub(r"\D", "", ch.get("debtor_nif", "") or "") == nif_clean:
+            return {"found": True, "client": {k: ch.get(k, "") or "" for k in CLIENT_COPY_FIELDS}}
+    return {"found": False}
 
 
 async def get_owned_charge(charge_id: str, company: dict) -> dict:
@@ -1176,6 +1199,47 @@ async def weekly_report(ctx: dict = Depends(require_admin)):
         "recovered_this_week": round(sum(c["amount"] for c in paid_week), 2),
         "negotiations": negotiations,
     }
+
+
+# ---------- Super Admin (proprietário da plataforma) ----------
+
+async def require_super_admin(ctx: dict = Depends(get_current_context)) -> dict:
+    if not SUPER_ADMIN_EMAIL or ctx["user"]["email"].lower() != SUPER_ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Acesso restrito ao proprietário da plataforma")
+    return ctx
+
+
+@api_router.get("/superadmin/companies")
+async def superadmin_companies(ctx: dict = Depends(require_super_admin)):
+    companies = await db.companies.find({}, {"_id": 0, "logo_base64": 0}).sort("created_at", -1).to_list(500)
+    result = []
+    for c in companies:
+        result.append({
+            "id": c["id"],
+            "company_name": c["company_name"],
+            "email": c["email"],
+            "country": c.get("country", "PT"),
+            "created_at": c.get("created_at"),
+            "blocked": bool(c.get("blocked", False)),
+            "user_count": await db.users.count_documents({"company_id": c["id"]}),
+            "charge_count": await db.charges.count_documents({"company_id": c["id"]}),
+        })
+    return result
+
+
+class CompanyStatusInput(BaseModel):
+    blocked: bool
+
+
+@api_router.put("/superadmin/companies/{company_id}/status")
+async def superadmin_set_status(company_id: str, data: CompanyStatusInput, ctx: dict = Depends(require_super_admin)):
+    company = await db.companies.find_one({"id": company_id})
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa não encontrada")
+    if data.blocked and company["email"].lower() == SUPER_ADMIN_EMAIL:
+        raise HTTPException(status_code=400, detail="Não pode bloquear a sua própria empresa")
+    await db.companies.update_one({"id": company_id}, {"$set": {"blocked": data.blocked}})
+    return {"ok": True, "blocked": data.blocked}
 
 
 # ---------- Seed ----------

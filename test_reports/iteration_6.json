@@ -1,0 +1,48 @@
+{
+  "summary": "Iteração 16 testada end-to-end (backend pytest + frontend Playwright) no URL público. Backend: 57/57 testes passaram (39 de regressão + 18 novos para lookup-client, superadmin/companies, bloqueio de empresa, paid_at). Frontend: todas as 8 frentes pedidas validadas com sucesso — agrupamento por cliente no Dashboard e Pendentes (validado também com 2 faturas do mesmo cliente: total 350,50 € = 100+250,50 e '2 facturas', colapsar esconde as 2 filhas), gráfico aging-chart agora a 260px (svg getBoundingClientRect height=260 @1280 e @1920 — BUG HIGH da iteração 5 CORRIGIDO), auto-preenchimento por NIF 245678901 (Marta Sousa + email + telemóvel + toast 'Cliente existente'), coluna 'Recebimento' em Recebidos (31/08/2026 para Carla Mendes) e no .print-report, Super Admin (28 empresas, colunas corretas, bloquear→'Bloqueada', login bloqueado mostra a mensagem exata em data-testid=auth-error, reativar→'Ativa'), cobrador sem item 'Super Admin' e redirecionado de /super-admin (403 no backend confirmado), assinatura WhatsApp '— TechFlow Solutions Lda · Cobranpro' na URL wa.me, notificações PWA sem erros (Notification.permission=denied em headless, lógica guarded), regressões OK (edição pré-preenchida, timeline com itens, Cancelados, Relatórios). Estado final limpo: 7 cobranças demo, 0 canceladas, 0 empresas bloqueadas.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Dashboard / aging-chart", "issue": "Warning do recharts ainda aparece 2x na consola no mount: 'The width(-1) and height(-1) of chart should be greater than 0...'. O gráfico renderiza corretamente depois (svg 260x486), mas o ResponsiveContainer mede -1 no primeiro paint. Fix: passar minHeight={260} / debounce ou renderizar só quando chartData.length>0.", "selector": "[data-testid=\"aging-chart\"]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard — cartão 'Antiguidade da Dívida Pendente'", "issues": ["O cartão estica com a linha do grid (altura medida 1100px @1280) mas o gráfico tem só 260px → ~840px de espaço vazio dentro do cartão. Sugestão: 'self-start'/'h-fit' no cartão ou mover o gráfico para um cartão de altura própria."]},
+      {"screen": "ChargeFormDialog + Relatórios (filtros)", "issues": ["Inputs de data nativos do browser (mostram 'mm/dd/yyyy', formato en-US) em 'Data de Vencimento' e 'Vencimento de/até' — deveria usar o Calendar shadcn com formato pt-PT (issue já reportado na iteração 5, continua presente)."]},
+      {"screen": "Relatórios PDF (.print-report)", "issues": ["printThStyle força textAlign:left para todos os cabeçalhos, mas as células numéricas usam textAlign:right (Valor/Acordado) → cabeçalho desalinhado do valor em Recebidos, Pendentes, Cancelados, Negociação e Relatórios. Sugestão: aceitar alinhamento por coluna (ex.: printThStyle(align))."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration16.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter16_results.xml",
+    "/app/test_reports/pytest/regression_results.xml"
+  ],
+  "action_items": [
+    "Eliminar o warning recharts width(-1)/height(-1) no mount do aging-chart (minHeight no ResponsiveContainer ou render condicional a chartData)",
+    "Reduzir/limitar a altura do cartão do gráfico no Dashboard (self-start/h-fit) — 840px de whitespace dentro do cartão",
+    "Substituir inputs de data nativos por Calendar shadcn (ChargeFormDialog e filtros de Relatórios) — pendente desde a iteração 5",
+    "Suportar alinhamento à direita nos <th> das tabelas de impressão para as colunas de valores"
+  ],
+  "critical_code_review_comments": [
+    "notifications.js: a chave de idempotência é global ao browser ('cobranpro_notified_{data}') — dois utilizadores/empresas na mesma máquina partilham o flag e o segundo não recebe as 'Tarefas do Dia'. Namespace por user.id/company.id.",
+    "server.py lookup_client: carrega até 1000 cobranças da empresa e filtra em Python; melhor usar um índice/regex no Mongo ou guardar o NIF normalizado (nif_digits) para evitar O(n) por keystroke/blur.",
+    "SuperAdmin.jsx usa window.confirm em vez de um AlertDialog shadcn (inconsistente com o resto da UI e difícil de testar); além disso não há paginação/pesquisa com 28+ empresas (já ~28 registos TEST_).",
+    "superadmin_companies faz 2 count_documents por empresa dentro de um loop (2N queries) — com muitas empresas será lento; usar $lookup/aggregation.",
+    "Falta limpeza das ~26 empresas 'TEST_Nova Empresa Lda' criadas pelos testes de registo — ruído permanente no painel Super Admin (considerar excluir emails test_co_*/TEST_ da listagem ou um endpoint de limpeza)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration16.py",
+    "/app/backend/tests/_seed_group_charges.py"
+  ],
+  "success_rate": {"backend": "100% (57/57)", "frontend": "100% das 8 frentes funcionais OK (3 nits de design + 1 warning de consola)"},
+  "seed_data_creation": "Criadas 2 cobranças TEST-QA/001 e TEST-QA/002 (cliente 'TEST_QA Grupo Cliente', NIF 999888777) para validar o agrupamento multi-fatura — APAGADAS no fim (200). Empresa 'Import Teste Lda' foi bloqueada e REATIVADA (verificado: 0 empresas bloqueadas). Estado final: 7 cobranças demo, 0 canceladas.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "denis.ferreira0909@gmail.com / Cobrancas2026! (super admin) · cobrador@techflow.pt / Cobrador2026! · import.teste@example.com / teste123456",
+  "context_for_next_testing_agent": "Testids confirmados: auth-email-input/auth-password-input/auth-submit-btn/auth-error; dash-group-{i}/dash-group-total-{i}/debtor-row-{id}/debtor-badge-{id}/wa-quick-{id}; Pendentes usa debtor-group-{i}/debtor-group-total-{i} (NÃO pend-group) e as filhas são pendente-row-{id}; recebido-paid-at-{id}; tenant-row/status/toggle-{id}; edit-charge-btn; charge-form-cancel/charge-form-submit. Playwright: registar page.on('dialog', accept) ANTES do clique no tenant-toggle (usa window.confirm) e registar apenas uma vez por página. Para testar o botão WhatsApp sem poluir a timeline: page.route('**/api/charges/*/interactions', abort) + override de window.open. Suite backend: /app/backend/tests/test_iteration16.py (18 testes) + backend_test.py (39). Helper /app/backend/tests/_seed_group_charges.py cria/apaga 2 cobranças do mesmo cliente para testar agrupamento.",
+  "rca_of_the_issue": "Bug HIGH da iteração 5 (gráfico gigante) resolvido: o container passou de 'flex-1 min-h-[260px]' para 'h-[260px]' com ResponsiveContainer 100%/100% → svg fica exatamente a 260px em 1280 e 1920. Efeito lateral remanescente: como o cartão continua a esticar até à altura da linha do grid (definida pela tabela de devedores), sobra ~840px de whitespace abaixo do gráfico; e o ResponsiveContainer ainda mede -1 no primeiro paint, gerando 2 warnings de consola."
+}

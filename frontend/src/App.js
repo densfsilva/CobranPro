@@ -13,9 +13,10 @@ import Reports from "@/pages/Reports";
 import Team from "@/pages/Team";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
+import SuperAdmin from "@/pages/SuperAdmin";
 import AppLayout from "@/components/AppLayout";
 
-function Protected({ children, adminOnly = false }) {
+function Protected({ children, adminOnly = false, superOnly = false }) {
   const { company, user, loading } = useAuth();
   if (loading) {
     return (
@@ -26,6 +27,7 @@ function Protected({ children, adminOnly = false }) {
   }
   if (!company) return <Navigate to="/login" replace />;
   if (adminOnly && user?.role !== "admin") return <Navigate to="/pendentes" replace />;
+  if (superOnly && !user?.is_super_admin) return <Navigate to="/" replace />;
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -50,6 +52,7 @@ function App() {
           <Route path="/perfil" element={<Protected><Profile /></Protected>} />
           <Route path="/cobranca/:id" element={<Protected><ChargeDetail /></Protected>} />
           <Route path="/configuracoes" element={<Protected><Settings /></Protected>} />
+          <Route path="/super-admin" element={<Protected superOnly><SuperAdmin /></Protected>} />
           <Route path="/branding" element={<Navigate to="/configuracoes" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

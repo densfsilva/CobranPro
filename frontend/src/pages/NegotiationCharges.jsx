@@ -6,7 +6,7 @@ import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t, invoiceWord } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
-import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
+import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
 
 export default function NegotiationCharges() {
   const [charges, setCharges] = useState([]);
@@ -119,7 +119,7 @@ export default function NegotiationCharges() {
       <PrintReport title="Relatório de Negociações — Promessas de Pagamento" subtitle={search ? `Filtro: "${search}"` : "Todas as faturas em negociação"} testid="print-report-negociacao">
         <table style={printTableStyle}>
           <thead>
-            <tr>{["Cliente", t("invoice"), "Valor", "Valor Acordado", "Promessa de Pagamento", "Observações"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+            <tr>{["Cliente", t("invoice"), "Valor", "Valor Acordado", "Promessa de Pagamento", "Observações"].map((h) => <th key={h} style={["Valor", "Valor Acordado"].includes(h) ? printThRightStyle : printThStyle}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {negociacao.map((c) => (

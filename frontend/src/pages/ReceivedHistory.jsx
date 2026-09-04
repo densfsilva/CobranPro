@@ -6,7 +6,9 @@ import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
-import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
+import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
+
+const fmtPaid = (iso) => (iso ? new Date(iso).toLocaleDateString("pt-PT") : "—");
 
 export default function ReceivedHistory() {
   const [charges, setCharges] = useState([]);
@@ -69,6 +71,7 @@ export default function ReceivedHistory() {
                 <th className="pb-3 font-medium">Devedor</th>
                 <th className="pb-3 font-medium">{t("invoice")}</th>
                 <th className="pb-3 font-medium">Vencimento</th>
+                <th className="pb-3 font-medium">Recebimento</th>
                 <th className="pb-3 font-medium text-right">Valor</th>
                 <th className="pb-3 font-medium text-right">Estado</th>
               </tr>
@@ -87,6 +90,7 @@ export default function ReceivedHistory() {
                   </td>
                   <td className="py-3 pr-3 font-mono-num text-xs">{c.invoice_number}</td>
                   <td className="py-3 pr-3 text-muted-foreground">{fmtDate(c.due_date)}</td>
+                  <td className="py-3 pr-3 text-emerald-400/90" data-testid={`recebido-paid-at-${c.id}`}>{fmtPaid(c.paid_at)}</td>
                   <td className="py-3 pr-3 text-right font-mono-num font-semibold">{money(c.amount)}</td>
                   <td className="py-3 text-right">
                     <span data-testid={`recebido-badge-${c.id}`} className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium border ${BUCKETS.paga.cls}`}>
@@ -96,7 +100,7 @@ export default function ReceivedHistory() {
                 </tr>
               ))}
               {recebidos.length === 0 && (
-                <tr><td colSpan={5} className="py-10 text-center text-muted-foreground" data-testid="recebidos-empty-state">Ainda não há cobranças liquidadas.</td></tr>
+                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="recebidos-empty-state">Ainda não há cobranças liquidadas.</td></tr>
               )}
             </tbody>
           </table>
@@ -105,7 +109,7 @@ export default function ReceivedHistory() {
       <PrintReport title="Histórico de Recebidos" subtitle={search ? `Filtro: "${search}"` : "Todas as cobranças liquidadas"} testid="print-report-recebidos">
         <table style={printTableStyle}>
           <thead>
-            <tr>{["Devedor", t("invoice"), "Vencimento", "Valor", "Estado"].map((h) => <th key={h} style={printThStyle}>{h}</th>)}</tr>
+            <tr>{["Devedor", t("invoice"), "Vencimento", "Recebimento", "Valor", "Estado"].map((h) => <th key={h} style={h === "Valor" ? printThRightStyle : printThStyle}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {recebidos.map((c) => (
@@ -113,6 +117,7 @@ export default function ReceivedHistory() {
                 <td style={printTdStyle}>{c.debtor_name}</td>
                 <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{c.invoice_number}</td>
                 <td style={printTdStyle}>{fmtDate(c.due_date)}</td>
+                <td style={printTdStyle}>{fmtPaid(c.paid_at)}</td>
                 <td style={{ ...printTdStyle, textAlign: "right", fontFamily: "monospace" }}>{money(c.amount)}</td>
                 <td style={printTdStyle}>Recebido</td>
               </tr>
@@ -120,7 +125,7 @@ export default function ReceivedHistory() {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={3} style={{ ...printTdStyle, fontWeight: 700 }}>Total recuperado ({recebidos.length} registos)</td>
+              <td colSpan={4} style={{ ...printTdStyle, fontWeight: 700 }}>Total recuperado ({recebidos.length} registos)</td>
               <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(total)}</td>
               <td style={printTdStyle} />
             </tr>

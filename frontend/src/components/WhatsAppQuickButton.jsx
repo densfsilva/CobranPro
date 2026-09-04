@@ -3,19 +3,22 @@ import { MessageCircle } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/badges";
 import { t } from "@/lib/i18n";
+import { useAuth } from "@/context/AuthContext";
 
-export function buildWhatsAppMessage(charge) {
-  return `Olá ${charge.debtor_name}, vimos que a ${t("invoiceLower")} ${charge.invoice_number} com vencimento em ${fmtDate(charge.due_date)} ainda está pendente. Podemos ajudar?`;
+export function buildWhatsAppMessage(charge, companyName = "") {
+  const base = `Olá ${charge.debtor_name}, vimos que a ${t("invoiceLower")} ${charge.invoice_number} com vencimento em ${fmtDate(charge.due_date)} ainda está pendente. Podemos ajudar?`;
+  return companyName ? `${base}\n\n— ${companyName} · Cobranpro` : base;
 }
 
 export default function WhatsAppQuickButton({ charge, onLogged }) {
+  const { company } = useAuth();
   const handle = async (e) => {
     e.stopPropagation();
     if (!charge.debtor_phone) {
       toast.error(`Esta cobrança não tem ${t("mobile").toLowerCase()} do devedor`);
       return;
     }
-    const msg = buildWhatsAppMessage(charge);
+    const msg = buildWhatsAppMessage(charge, company?.company_name);
     const phone = charge.debtor_phone.replace(/[^\d]/g, "");
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
     try {
