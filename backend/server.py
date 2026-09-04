@@ -37,7 +37,7 @@ db = client[os.environ['DB_NAME']]
 
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGORITHM = "HS256"
-SUPER_ADMIN_EMAIL = os.environ.get('SUPER_ADMIN_EMAIL', '').lower()
+SUPER_ADMIN_EMAIL = os.environ.get('SUPER_ADMIN_EMAIL', 'denis.ferreira0909@gmail.com').lower()
 BLOCKED_MESSAGE = "A sua conta está suspensa. Atualize o seu plano para continuar a utilizar o Cobranpro."
 
 app = FastAPI()
@@ -64,6 +64,7 @@ def create_token(user_id: str, email: str, company_id: str, role: str) -> str:
         "email": email,
         "cid": company_id,
         "type": "access",
+        "sa": bool(SUPER_ADMIN_EMAIL) and email.lower() == SUPER_ADMIN_EMAIL,
         "exp": datetime.now(timezone.utc) + timedelta(days=7),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -523,6 +524,7 @@ async def cep_lookup(cep: str = "", ctx: dict = Depends(get_current_context)):
     cached = CEP_CACHE.get(cache_key)
     if cached and time.time() - cached[0] < 300:
         return cached[1]
+    result = None
     try:
         async with httpx.AsyncClient(timeout=8) as http:
             if country == "BR":
@@ -536,19 +538,22 @@ async def cep_lookup(cep: str = "", ctx: dict = Depends(get_current_context)):
                     return {"found": False}
                 r = await http.get(f"https://json.geoapi.pt/cp/{digits[:4]}-{digits[4:]}")
                 d = r.json()
-                if not isinstance(d, dict) or "Concelho" not in d:
-                    result = {"found": False}
-                else:
-                    ruas = d.get("ruas") or []
-                    result = {"found": True, "rua": ruas[0] if len(ruas) == 1 else "", "localidade": d.get("Concelho", ""), "estado": d.get("Distrito", "")}
-        if result.get("found"):
-            CEP_CACHE[cache_key] = (time.time(), result)
-            if len(CEP_CACHE) > 500:
-                CEP_CACHE.clear()
-        return result
+                if not isinstance(d, dict):
+                    return {"found": False, "unavailable": True}
+                if "Concelho" not in d:
+                    if d.get("msg") or d.get("Msg"):
+                        return {"found": False, "unavailable": True}
+                    return {"found": False}
+                ruas = d.get("ruas") or []
+                result = {"found": True, "rua": ruas[0] if len(ruas) == 1 else "", "localidade": d.get("Concelho", ""), "estado": d.get("Distrito", "")}
     except Exception as e:
         logger.warning("CEP lookup falhou: %s", e)
-        return {"found": False}
+        return {"found": False, "unavailable": True}
+    if result.get("found"):
+        CEP_CACHE[cache_key] = (time.time(), result)
+        if len(CEP_CACHE) > 500:
+            CEP_CACHE.clear()
+    return result
 
 
 async def get_owned_charge(charge_id: str, company: dict) -> dict:

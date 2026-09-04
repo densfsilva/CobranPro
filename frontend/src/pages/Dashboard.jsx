@@ -5,6 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer } from 
 import { api } from "@/lib/api";
 import { notifyDailyTasks } from "@/lib/notifications";
 import { BUCKETS, fmtDate } from "@/lib/badges";
+import { clientGroupKey } from "@/lib/masks";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { useAuth } from "@/context/AuthContext";
@@ -65,13 +66,14 @@ export default function Dashboard() {
   const groups = useMemo(() => {
     const map = new Map();
     for (const c of filtered) {
-      if (!map.has(c.debtor_name)) map.set(c.debtor_name, []);
-      map.get(c.debtor_name).push(c);
+      const key = clientGroupKey(c);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(c);
     }
-    return [...map.entries()].map(([name, items]) => ({
-      name,
+    return [...map.entries()].map(([, items]) => ({
+      name: items[0]?.debtor_name || "—",
       items,
-      doc: items[0]?.debtor_nif || "",
+      doc: items.find((c) => c.debtor_nif)?.debtor_nif || "",
       total: items.reduce((s, c) => s + c.amount, 0),
     }));
   }, [filtered]);
@@ -219,7 +221,7 @@ export default function Dashboard() {
                 {groups.map((g, gi) => {
                   const isOpen = expanded[gi] !== false;
                   return (
-                    <Fragment key={g.name}>
+                    <Fragment key={`${g.name}-${gi}`}>
                       <tr
                         data-testid={`dash-group-${gi}`}
                         onClick={() => setExpanded({ ...expanded, [gi]: !isOpen })}

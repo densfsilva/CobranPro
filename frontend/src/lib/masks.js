@@ -18,3 +18,9 @@ export function maskPhone(value, country = "PT") {
   }
   return prefix + (d.match(/\d{1,3}/g) || []).join(" ");
 }
+
+export function clientGroupKey(c) {
+  const nif = (c.debtor_nif || "").replace(/\D/g, "");
+  if (nif) return `nif:${nif}`;
+  return `nome:${(c.debtor_name || "").trim().toLowerCase().replace(/\s+/g, " ")}`;
+}

@@ -12,7 +12,7 @@ const NAV = [
   { to: "/relatorios", label: "Relatórios", icon: FileBarChart, testid: "nav-relatorios", admin: true },
   { to: "/equipa", labelKey: "team", icon: Users, testid: "nav-equipa", admin: true },
   { to: "/configuracoes", label: "Configurações", icon: Settings, testid: "nav-configuracoes", admin: true },
-  { to: "/super-admin", label: "Super Admin", icon: ShieldCheck, testid: "nav-super-admin", super: true },
+  { to: "/super-admin", label: "Gestão da Plataforma", icon: ShieldCheck, testid: "nav-super-admin", super: true },
 ];
 
 export default function AppLayout({ children }) {

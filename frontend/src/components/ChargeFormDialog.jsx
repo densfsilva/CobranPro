@@ -39,11 +39,12 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
     setForm({ ...form, [k]: v });
   };
 
-  const lookupClient = async () => {
+  const lookupClient = async (showFeedback = false) => {
     if (charge || !form.debtor_nif.trim()) return;
     setLookupBusy("nif");
     try {
-      const { data } = await api.get("/charges/lookup-client", { params: { nif: form.debtor_nif } });
+      const nif = form.debtor_nif.replace(/[^\dA-Za-z]/g, "");
+      const { data } = await api.get("/charges/lookup-client", { params: { nif } });
       if (data.found && data.client) {
         const c = data.client;
         const country = getCountry();
@@ -54,8 +55,12 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
           whatsapp: c.whatsapp ? maskPhone(c.whatsapp, country) : c.whatsapp,
         }));
         toast.success("Cliente existente — dados preenchidos automaticamente");
+      } else if (showFeedback) {
+        toast.info(`Cliente não encontrado para este ${idLabel()} — preencha manualmente`);
       }
-    } catch { /* lookup silencioso */ } finally { setLookupBusy(""); }
+    } catch {
+      if (showFeedback) toast.error("Falha na busca do cliente. Tente novamente.");
+    } finally { setLookupBusy(""); }
   };
 
   const cepLookup = async () => {
@@ -71,10 +76,14 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
           addr_estado: data.estado || prev.addr_estado,
         }));
         toast.success("Morada preenchida pelo Código Postal");
+      } else if (data.unavailable) {
+        toast.warning("Serviço de Código Postal temporariamente indisponível — preencha manualmente");
       } else {
         toast.info("Código Postal não encontrado — preencha manualmente");
       }
-    } catch { /* lookup silencioso */ } finally { setLookupBusy(""); }
+    } catch {
+      toast.warning("Serviço de Código Postal temporariamente indisponível — preencha manualmente");
+    } finally { setLookupBusy(""); }
   };
 
   const submit = async (e) => {
@@ -132,8 +141,8 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
               {LOOKUPS[key] ? (
                 <div className="relative">
                   <Input id={key} data-testid={`charge-form-${key.replace(/_/g, "-")}`} type={type}
-                    required={req} value={form[key]} onChange={set(key)} onBlur={LOOKUPS[key]} placeholder={ph} className="bg-background pr-10" />
-                  <button type="button" onClick={LOOKUPS[key]} disabled={lookupBusy === (key === "debtor_nif" ? "nif" : "cep")}
+                    required={req} value={form[key]} onChange={set(key)} onBlur={() => LOOKUPS[key]()} placeholder={ph} className="bg-background pr-10" />
+                  <button type="button" onClick={() => LOOKUPS[key](true)} disabled={lookupBusy === (key === "debtor_nif" ? "nif" : "cep")}
                     data-testid={`charge-form-${key.replace(/_/g, "-")}-lookup-btn`} title="Procurar"
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-brand hover:bg-brand-soft transition-colors duration-150">
                     <Search size={15} className={lookupBusy === (key === "debtor_nif" ? "nif" : "cep") ? "animate-pulse" : ""} />

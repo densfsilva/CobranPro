@@ -22,6 +22,13 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-04 — Iteração 18: Fix crítico de agrupamento, lookups e Super Admin (CONCLUÍDA)
+- Agrupamento por cliente passa a usar clientGroupKey (NIF/CNPJ só dígitos; fallback nome normalizado) no Dashboard e Pendentes — elimina grupos duplicados por variações de nome (lib/masks.js)
+- Lupa NIF: frontend normaliza input (remove pontos/traços) + backend já normalizava; feedback ao clique ("Cliente não encontrado…") e erro de rede comunicado; verificado: 245.678.901 e 245678-901 → found:true (Marta Sousa), HTTP 200
+- CEP lookup: geoapi.pt atingiu limite gratuito; zippopotam avaliado e descartado (dados PT vazios); backend devolve {found:false, unavailable:true} em rate-limit/falha → frontend mostra aviso "Serviço de Código Postal temporariamente indisponível — preencha manualmente" (amarelo); BR (ViaCEP) inalterado
+- Super Admin: SUPER_ADMIN_EMAIL com fallback 'denis.ferreira0909@gmail.com' (garante acesso mesmo em envs sem a variável, ex.: produção); JWT passa a transportar claim sa:true; menu lateral mostra "Gestão da Plataforma" logo após login
+- Testes: 73 pass + 1 skip (geoapi rate-limit) na suite pytest; curls de verificação OK (sa claim, me, lookup formatado, cep unavailable)
+
 ### 2026-09-04 — Iteração 17: UX, máscaras e relatórios executivos (CONCLUÍDA)
 - Nova Cobrança: NIF/CNPJ é o 1º campo com lupa (blur ou clique) → auto-preenche cliente via /api/charges/lookup-client; lupa no CEP/CP → GET /api/utils/cep-lookup (ViaCEP BR, geoapi.pt PT, cache 5min só de sucessos) preenche Rua/Localidade/Estado
 - Máscaras de telefone automáticas PT (XXX XXX XXX) / BR ((XX) XXXXX-XXXX) em Telemóvel/WhatsApp, incl. dados vindos do lookup; telefones na ficha são links tel: (lib/masks.js)

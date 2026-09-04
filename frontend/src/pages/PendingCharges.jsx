@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, Clock, Plus, Printer, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { BUCKETS, fmtDate, statusLabelOf } from "@/lib/badges";
+import { clientGroupKey } from "@/lib/masks";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
@@ -45,13 +46,14 @@ export default function PendingCharges() {
   const groups = useMemo(() => {
     const map = new Map();
     for (const c of pendentes) {
-      if (!map.has(c.debtor_name)) map.set(c.debtor_name, []);
-      map.get(c.debtor_name).push(c);
+      const key = clientGroupKey(c);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(c);
     }
-    return [...map.entries()].map(([name, items]) => ({
-      name,
+    return [...map.entries()].map(([, items]) => ({
+      name: items[0]?.debtor_name || "—",
       items,
-      doc: items[0]?.debtor_nif || "",
+      doc: items.find((c) => c.debtor_nif)?.debtor_nif || "",
       total: items.reduce((s, c) => s + c.amount, 0),
     }));
   }, [pendentes]);
