@@ -13,6 +13,7 @@ import ChargeFormDialog from "@/components/ChargeFormDialog";
 import ImportPdfDialog from "@/components/ImportPdfDialog";
 import WhatsAppQuickButton from "@/components/WhatsAppQuickButton";
 import PrintReport, { printTableStyle, printThStyle, printTdStyle } from "@/components/PrintReport";
+import PrintBarChart from "@/components/PrintBarChart";
 
 const KPI_CONFIG = [
   { key: "total_debt", label: "Total em Dívida", icon: Banknote, testid: "dashboard-kpi-total-debt" },
@@ -314,20 +315,7 @@ export default function Dashboard() {
                 </tr>
               </tbody>
             </table>
-            <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>Antiguidade da Dívida Pendente</p>
-            <table style={printTableStyle}>
-              <tbody>
-                {["verde", "amarelo", "vermelho", "roxo"].map((b) => (
-                  <tr key={b}>
-                    <td style={{ ...printTdStyle, width: 24 }}>
-                      <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 3, background: BUCKETS[b].hex }} />
-                    </td>
-                    <td style={printTdStyle}>{BUCKETS[b].label}</td>
-                    <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 700 }}>{stats.buckets[b] || 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <PrintBarChart title="Antiguidade da Dívida Pendente" data={["verde", "amarelo", "vermelho", "roxo"].map((b) => ({ label: BUCKETS[b].label.split(" (")[0], value: stats.buckets[b] || 0, color: BUCKETS[b].hex }))} />
           </>
         )}
       </PrintReport>

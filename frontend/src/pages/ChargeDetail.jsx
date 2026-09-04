@@ -6,6 +6,7 @@ import { api, formatApiError } from "@/lib/api";
 import { BUCKETS, fmtDate } from "@/lib/badges";
 import { money, idLabel } from "@/lib/format";
 import { t } from "@/lib/i18n";
+import { maskPhone } from "@/lib/masks";
 import { useAuth } from "@/context/AuthContext";
 import MessageModal from "@/components/MessageModal";
 import ChargeTimeline from "@/components/ChargeTimeline";
@@ -16,7 +17,7 @@ import ChargeFormDialog from "@/components/ChargeFormDialog";
 export default function ChargeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, company } = useAuth();
   const [charge, setCharge] = useState(null);
   const [modal, setModal] = useState(null); // 'whatsapp' | 'email' | null
   const [timelineTick, setTimelineTick] = useState(0);
@@ -132,8 +133,16 @@ export default function ChargeDetail() {
             {[
               ["Email", charge.debtor_email || "—"],
               ["Email 2", charge.debtor_email2 || "—"],
-              [t("mobile"), charge.debtor_phone || "—"],
-              ["WhatsApp", charge.whatsapp || "—"],
+              [t("mobile"), charge.debtor_phone ? (
+                <a href={`tel:+${charge.debtor_phone.replace(/[^\d]/g, "")}`} data-testid="debtor-phone-tel" className="text-brand hover:underline inline-flex items-center gap-1.5">
+                  <Phone size={13} /> {maskPhone(charge.debtor_phone, company?.country || "PT")}
+                </a>
+              ) : "—"],
+              ["WhatsApp", charge.whatsapp ? (
+                <a href={`tel:+${charge.whatsapp.replace(/[^\d]/g, "")}`} data-testid="debtor-whatsapp-tel" className="text-brand hover:underline inline-flex items-center gap-1.5">
+                  <Phone size={13} /> {maskPhone(charge.whatsapp, company?.country || "PT")}
+                </a>
+              ) : "—"],
               [idLabel(), charge.debtor_nif || "—"],
               ["Conta Bancária 1", charge.bank1 || "—"],
               ["Conta Bancária 2", charge.bank2 || "—"],

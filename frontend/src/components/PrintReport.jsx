@@ -12,11 +12,7 @@ export default function PrintReport({ title, subtitle, active = true, testid = "
           ? <img src={company.logo_base64} alt={company.company_name} style={{ width: 52, height: 52, objectFit: "contain" }} />
           : <div style={{ width: 52, height: 52, borderRadius: 10, background: company.primary_color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 20 }}>{initials}</div>}
         <div>
-          <p style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{company.company_name}</p>
-          <p style={{ fontSize: 12, color: "#475569", margin: 0 }}>
-            {company.nif ? `${company.country === "BR" ? "CNPJ" : "NIF"} ${company.nif} · ` : ""}
-            {company.address ? `${company.address} · ` : ""}{company.email}
-          </p>
+          <p style={{ fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: "-0.01em" }}>{company.company_name}</p>
         </div>
       </div>
       <h1 style={{ fontSize: 22, fontWeight: 800, margin: "16px 0 4px" }}>{title}</h1>

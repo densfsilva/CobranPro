@@ -11,6 +11,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ company_name: "", full_name: "", email: "", password: "" });
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -18,8 +19,14 @@ export default function AuthPage() {
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+    setInfo("");
     setBusy(true);
     try {
+      if (mode === "forgot") {
+        const { data } = await api.post("/auth/forgot-password", { email: form.email, origin: window.location.origin });
+        setInfo(data.message);
+        return;
+      }
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
       const payload = mode === "login" ? { email: form.email, password: form.password } : form;
       const { data } = await api.post(endpoint, payload);
@@ -67,11 +74,13 @@ export default function AuthPage() {
         <div className="w-full max-w-sm space-y-8">
           <div className="space-y-2">
             <h2 className="font-heading text-3xl font-bold tracking-tight" data-testid="auth-title">
-              {mode === "login" ? "Bem-vindo de volta" : "Criar conta de empresa"}
+              {mode === "login" ? "Bem-vindo de volta" : mode === "forgot" ? "Recuperar palavra-passe" : "Criar conta de empresa"}
             </h2>
             <p className="text-sm text-muted-foreground">
               {mode === "login"
                 ? "É um prazer vê-lo novamente. Aceda ao seu painel e continue a recuperar o que é seu."
+                : mode === "forgot"
+                ? "Indique o seu email e enviaremos um link para redefinir a palavra-passe."
                 : "Registe a sua empresa e comece a cobrar em minutos."}
             </p>
           </div>
@@ -95,21 +104,30 @@ export default function AuthPage() {
               <Input id="email" type="email" data-testid="auth-email-input" required value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="empresa@exemplo.pt" className="bg-card" />
             </div>
+            {mode !== "forgot" && (
             <div className="space-y-1.5">
-              <Label htmlFor="password">Palavra-passe</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Palavra-passe</Label>
+                {mode === "login" && (
+                  <button type="button" data-testid="forgot-password-link" onClick={() => { setMode("forgot"); setError(""); setInfo(""); }}
+                    className="text-xs text-brand hover:underline">Esqueceu a sua senha?</button>
+                )}
+              </div>
               <Input id="password" type="password" data-testid="auth-password-input" required minLength={6} value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" className="bg-card" />
             </div>
+            )}
             {error && <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2" data-testid="auth-error">{error}</p>}
+            {info && <p className="text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2" data-testid="auth-info">{info}</p>}
             <Button type="submit" disabled={busy} data-testid="auth-submit-btn"
               className="w-full bg-brand hover:opacity-90 text-white font-semibold transition-opacity duration-200">
-              {busy ? "A processar..." : mode === "login" ? "Entrar" : "Criar Conta"}
+              {busy ? "A processar..." : mode === "login" ? "Entrar" : mode === "forgot" ? "Enviar recuperação" : "Criar Conta"}
               <ArrowRight size={16} className="ml-2" />
             </Button>
           </form>
           <p className="text-sm text-center text-muted-foreground">
             {mode === "login" ? "Ainda não tem conta?" : "Já tem conta?"}{" "}
-            <button type="button" data-testid="auth-mode-toggle" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
+            <button type="button" data-testid="auth-mode-toggle" onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); setInfo(""); }}
               className="text-brand font-medium hover:underline">
               {mode === "login" ? "Registar empresa" : "Entrar"}
             </button>

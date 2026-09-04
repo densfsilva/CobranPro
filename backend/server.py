@@ -6,6 +6,8 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os
 import re
+import secrets
+import time
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta, date
@@ -283,6 +285,64 @@ async def me(ctx: dict = Depends(get_current_context)):
     return {**serialize_company(ctx["company"]), "user": serialize_user(ctx["user"])}
 
 
+class ForgotInput(BaseModel):
+    email: EmailStr
+    origin: Optional[str] = None
+
+
+class ResetInput(BaseModel):
+    token: str
+    password: str = Field(min_length=6, max_length=128)
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(data: ForgotInput):
+    email = data.email.lower().strip()
+    user = await db.users.find_one({"email": email})
+    if user:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await db.password_resets.delete_many({"email": email, "used": False})
+        await db.password_resets.delete_many({"expires_at": {"$lt": now_iso}})
+        token = secrets.token_urlsafe(32)
+        await db.password_resets.insert_one({
+            "token": token,
+            "email": email,
+            "user_id": user["id"],
+            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+            "used": False,
+            "created_at": now_iso,
+        })
+        origin = (data.origin or "").rstrip("/")
+        if not origin.startswith("http"):
+            origin = ""
+        link = f"{origin}/reset-password?token={token}"
+        html = (
+            '<div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#0B0F1A;color:#E5E9F0;padding:32px;border-radius:12px">'
+            '<p style="font-size:20px;font-weight:800;margin:0 0 4px">Cobran<span style="color:#2563EB">pro</span></p>'
+            '<p style="font-size:12px;color:#8B94A7;margin:0 0 24px">Gestão de Cobranças Profissional</p>'
+            f'<p style="font-size:14px;line-height:1.6">Recebemos um pedido para redefinir a palavra-passe da conta <b>{escape(email)}</b>.</p>'
+            f'<a href="{escape(link)}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#2563EB;color:#fff;text-decoration:none;border-radius:8px;font-weight:700">Redefinir palavra-passe</a>'
+            '<p style="font-size:12px;color:#8B94A7">O link é válido por 1 hora. Se não pediu esta alteração, ignore este email.</p>'
+            '</div>'
+        )
+        try:
+            await send_email(to=email, subject="Redefinir palavra-passe — Cobranpro", html=html)
+        except Exception as e:
+            logger.error("Falha ao enviar email de recuperação: %s", e)
+    return {"ok": True, "message": "Se o email existir, enviámos instruções de recuperação para o seu email."}
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(data: ResetInput):
+    rec = await db.password_resets.find_one({"token": data.token})
+    if not rec or rec.get("used") or rec["expires_at"] < datetime.now(timezone.utc).isoformat():
+        raise HTTPException(status_code=400, detail="Link inválido ou expirado. Peça uma nova recuperação.")
+    await db.users.update_one({"id": rec.get("user_id", ""), "email": rec["email"]}, {"$set": {"password_hash": hash_password(data.password)}})
+    await db.password_resets.update_one({"token": data.token}, {"$set": {"used": True}})
+    await db.login_attempts.delete_one({"identifier": rec["email"]})
+    return {"ok": True}
+
+
 # ---------- Equipa & Perfil ----------
 
 class InviteInput(BaseModel):
@@ -450,6 +510,45 @@ async def lookup_client(nif: str = "", ctx: dict = Depends(require_admin)):
         if re.sub(r"\D", "", ch.get("debtor_nif", "") or "") == nif_clean:
             return {"found": True, "client": {k: ch.get(k, "") or "" for k in CLIENT_COPY_FIELDS}}
     return {"found": False}
+
+
+CEP_CACHE: dict = {}
+
+
+@api_router.get("/utils/cep-lookup")
+async def cep_lookup(cep: str = "", ctx: dict = Depends(get_current_context)):
+    digits = re.sub(r"\D", "", cep or "")
+    country = ctx["company"].get("country", "PT")
+    cache_key = (country, digits)
+    cached = CEP_CACHE.get(cache_key)
+    if cached and time.time() - cached[0] < 300:
+        return cached[1]
+    try:
+        async with httpx.AsyncClient(timeout=8) as http:
+            if country == "BR":
+                if len(digits) != 8:
+                    return {"found": False}
+                r = await http.get(f"https://viacep.com.br/ws/{digits}/json/")
+                d = r.json()
+                result = {"found": False} if d.get("erro") else {"found": True, "rua": d.get("logradouro", ""), "localidade": d.get("localidade", ""), "estado": d.get("uf", "")}
+            else:
+                if len(digits) != 7:
+                    return {"found": False}
+                r = await http.get(f"https://json.geoapi.pt/cp/{digits[:4]}-{digits[4:]}")
+                d = r.json()
+                if not isinstance(d, dict) or "Concelho" not in d:
+                    result = {"found": False}
+                else:
+                    ruas = d.get("ruas") or []
+                    result = {"found": True, "rua": ruas[0] if len(ruas) == 1 else "", "localidade": d.get("Concelho", ""), "estado": d.get("Distrito", "")}
+        if result.get("found"):
+            CEP_CACHE[cache_key] = (time.time(), result)
+            if len(CEP_CACHE) > 500:
+                CEP_CACHE.clear()
+        return result
+    except Exception as e:
+        logger.warning("CEP lookup falhou: %s", e)
+        return {"found": False}
 
 
 async def get_owned_charge(charge_id: str, company: dict) -> dict:
@@ -1276,6 +1375,7 @@ async def startup():
     await db.users.create_index("company_id")
     await db.charges.create_index("company_id")
     await db.login_attempts.create_index("identifier")
+    await db.password_resets.create_index("token", unique=True)
     await db.interactions.create_index("charge_id")
     await db.documents.create_index("charge_id")
 

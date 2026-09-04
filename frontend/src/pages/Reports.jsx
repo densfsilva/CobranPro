@@ -5,6 +5,7 @@ import { fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
+import PrintBarChart from "@/components/PrintBarChart";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -234,6 +235,7 @@ export default function Reports() {
                 </tr>
               </tbody>
             </table>
+            <PrintBarChart title="Contactos da Semana" data={[["Chamadas", weekly.counts.chamada, "#2563EB"], ["Emails", weekly.counts.email, "#0EA5E9"], ["WhatsApp", weekly.counts.whatsapp, "#10B981"], ["Notas", weekly.counts.nota, "#8B5CF6"]].map(([label, value, color]) => ({ label, value, color }))} />
             {weekly.negotiations.length > 0 && (
               <>
                 <p style={{ fontSize: 13, fontWeight: 700, margin: "0 0 8px" }}>Acordos em Negociação</p>

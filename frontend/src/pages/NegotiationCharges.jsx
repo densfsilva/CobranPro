@@ -7,10 +7,13 @@ import { money } from "@/lib/format";
 import { t, invoiceWord } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
+import PeriodFilter, { periodSubtitle } from "@/components/PeriodFilter";
 
 export default function NegotiationCharges() {
   const [charges, setCharges] = useState([]);
   const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -23,8 +26,9 @@ export default function NegotiationCharges() {
       .filter((c) => !search ||
         c.debtor_name.toLowerCase().includes(search.toLowerCase()) ||
         c.invoice_number.toLowerCase().includes(search.toLowerCase()))
+      .filter((c) => (!from || c.due_date >= from) && (!to || c.due_date <= to))
       .sort((a, b) => b.days_overdue - a.days_overdue);
-  }, [charges, search]);
+  }, [charges, search, from, to]);
 
   const total = negociacao.reduce((s, c) => s + c.amount, 0);
 
@@ -53,15 +57,18 @@ export default function NegotiationCharges() {
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">
-        <div className="relative max-w-sm mb-4">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Pesquisar devedor ou ${t("invoiceLower")}...`}
-            data-testid="negociacao-search-input"
-            className="pl-9 bg-background"
-          />
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="relative max-w-sm flex-1 min-w-[200px]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Pesquisar devedor ou ${t("invoiceLower")}...`}
+              data-testid="negociacao-search-input"
+              className="pl-9 bg-background"
+            />
+          </div>
+          <PeriodFilter from={from} to={to} onFrom={setFrom} onTo={setTo} testid="negociacao" />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -116,7 +123,7 @@ export default function NegotiationCharges() {
           </table>
         </div>
       </div>
-      <PrintReport title="Relatório de Negociações — Promessas de Pagamento" subtitle={search ? `Filtro: "${search}"` : "Todas as faturas em negociação"} testid="print-report-negociacao">
+      <PrintReport title="Relatório de Negociações — Promessas de Pagamento" subtitle={`${search ? `Filtro: "${search}"` : "Todas as faturas em negociação"}${periodSubtitle(from, to)}`} testid="print-report-negociacao">
         <table style={printTableStyle}>
           <thead>
             <tr>{["Cliente", t("invoice"), "Valor", "Valor Acordado", "Promessa de Pagamento", "Observações"].map((h) => <th key={h} style={["Valor", "Valor Acordado"].includes(h) ? printThRightStyle : printThStyle}>{h}</th>)}</tr>

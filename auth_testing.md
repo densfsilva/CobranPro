@@ -1,22 +1,31 @@
-# Auth Testing Playbook
+# Auth Testing Playbook — Cobranpro
 
-## Step 1: MongoDB Verification
+## Credenciais
+Ver /app/memory/test_credentials.md (admin, cobrador, empresa de import).
+
+## Verificação MongoDB
 ```
 mongosh
 use test_database
-db.companies.find({email: "denis.ferreira0909@gmail.com"}, {password_hash: 1})
+db.users.find({role: "admin"}, {email: 1, password_hash: 1})
+db.users.getIndexes()   // email unique
+db.password_resets.getIndexes()  // token unique
 ```
-Verify: bcrypt hash starts with `$2b$`, unique index on companies.email, index on login_attempts.identifier.
+password_hash começa por `$2b$` (bcrypt).
 
-## Step 2: API Testing
+## API (curl)
 ```
-TOKEN=$(curl -s -X POST $REACT_APP_BACKEND_URL/api/auth/login -H "Content-Type: application/json" -d '{"email":"denis.ferreira0909@gmail.com","password":"Cobrancas2026!"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
-curl -s $REACT_APP_BACKEND_URL/api/auth/me -H "Authorization: Bearer $TOKEN"
+# login
+curl -X POST $API/api/auth/login -H "Content-Type: application/json" -d '{"email":"...","password":"..."}'
+# me
+curl $API/api/auth/me -H "Authorization: Bearer $TOKEN"
+# forgot (sempre 200, sem enumeração)
+curl -X POST $API/api/auth/forgot-password -H "Content-Type: application/json" -d '{"email":"x@y.z","origin":"https://<frontend>"}'
+# reset (token vem do email / coleção password_resets)
+curl -X POST $API/api/auth/reset-password -H "Content-Type: application/json" -d '{"token":"<token>","password":"nova123456"}'
 ```
-Login returns {token, company}; /me returns the same company with Bearer token.
 
-## Brute force
-5 failed logins on same email+IP → HTTP 429 with 15-minute lockout; success clears attempts.
-
-## Register
-POST /api/auth/register {company_name, email, password(min 6)} → token + company + 6 sample charges auto-seeded.
+## Regras
+- Reset token: `secrets.token_urlsafe(32)`, validade 1h, `used` após consumo.
+- forgot-password nunca revela se o email existe.
+- Empresa com `blocked: true` recebe 403 no login e em toda a API.

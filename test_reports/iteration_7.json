@@ -1,0 +1,49 @@
+{
+  "summary": "Iteração 17 testada end-to-end no URL público. BACKEND: 74/74 pytest a passar (57 de regressão das iterações anteriores + 17 novos em test_iteration17.py) — forgot-password sem enumeração (200 para email inexistente e existente, mesma mensagem), token secrets 32+ chars em password_resets com índice único em token, reset-password rejeita token inválido/expirado/já usado com 400 'Link inválido ou expirado', validação 422 (email inválido, password <6), cep-lookup PT 4000-069 → Porto/Porto, 401 sem auth, {found:false} para CP curto/inexistente/vazio, lookup-client NIF 245678901 → Marta Sousa, dashboard sem _id, brute-force lockout. FRONTEND: forgot-password-link visível junto a Palavra-passe, modo 'Recuperar palavra-passe' sem campo password (count=0), auth-info verde com a mensagem exata; reset-password sem token e com token inválido mostram reset-error corretos; validação de confirmação ('As palavras-passe não coincidem'). RESET E2E REAL: token lido de password_resets → /reset-password?token=X → Temp123456 → redirect /login → login com nova password entra no Dashboard 'Import Teste Lda' (toast 'Palavra-passe redefinida com sucesso') → password ORIGINAL teste123456 REPOSTA e confirmada (login 200); tokens de teste limpos da coleção. Nova Cobrança: NIF é o 1º input do dialog (ordem confirmada via DOM), lupa do NIF preenche Marta Sousa/email/telemóvel, máscara PT '912345678'→'912 345 678' no Telemóvel e no WhatsApp, lupa do Código Postal '4000-069' → Rua 'PC ALMEIDA GARRETT'/Localidade Porto/Distrito Porto, CP inválido '0000-000' mostra toast 'Código Postal não encontrado — preencha manualmente' SEM limpar campos, cancelar não persiste. Ficha: debtor-phone-tel href='tel:+351918765432'. Filtros de período presentes nas 4 abas (pendentes/recebidos/negociacao/cancelados); Pendentes de 2026-06-01 a 2026-06-30 → 15→3 linhas, count 5→1, total 15 341,25 €→7 620,75 €, e volta a 5 ao limpar. PDFs: print-report-dashboard com print-bar-chart de 4 barras (Atraso Leve/Moderado/Crítico/Contencioso), print-report-weekly com 'Contactos da Semana' + tabela Data/Tipo/Cliente/Resumo; cabeçalhos só logo/iniciais + nome da empresa (sem endereço/NIF/email). Configurações: logo-size-hint correto. Regressão: aging-chart svg=260px e ZERO warnings recharts width(-1) (bug LOW da it.16 corrigido), agrupamentos colapsam, edição pré-preenchida, timeline, Super Admin 29 empresas, 9 rotas carregam com 0 erros de consola/pageerror. Estado final: 3 credenciais válidas (200), 7 cobranças TechFlow, 0 cobranças novas, password import.teste = teste123456.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/forgot-password", "issue": "Sem rate-limit próprio: cada chamada cria um novo documento em password_resets (9 registos acumulados durante o teste, todos válidos 1h em paralelo). Recomenda-se invalidar tokens anteriores do mesmo email e/ou limitar pedidos por IP/email."},
+      {"endpoint": "POST /api/auth/reset-password", "issue": "db.users.update_one({email}) atualiza por email sem company_id — se o mesmo email existir em duas empresas (o registo não impede necessariamente), só um utilizador é atualizado de forma não determinística. Guardar user_id no token de reset."},
+      {"endpoint": "CORS (server.py:1483)", "issue": "allow_credentials=True com allow_origins padrão '*' — combinação rejeitada pelos browsers e permissiva. App usa Bearer token (sem cookies), por isso sem impacto funcional agora, mas deve listar origens explícitas."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Nova Cobrança / Ficha da cobrança", "issues": ["As máscaras de telefone só se aplicam ao digitar: o auto-preenchimento por NIF injeta '+351912345432' sem máscara e a ficha mostra '+351918765432' cru — aplicar maskPhone também ao preencher via lookup e na renderização do link tel: (ex.: '+351 918 765 432')."]},
+      {"screen": "ChargeFormDialog + filtros de período", "issues": ["Inputs de data nativos do browser (mm/dd/yyyy, en-US) em 'Data de Vencimento', 'Próximo Contacto' e 'Vencimento de/até' — deveria usar o Calendar shadcn com formato pt-PT (pendente desde a iteração 5)."]},
+      {"screen": "Relatórios PDF (.print-report)", "issues": ["printThRightStyle já existe mas continua a haver colunas de valores com cabeçalho à esquerda em algumas tabelas — confirmar aplicação em Pendentes/Recebidos/Cancelados/Negociação."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration17.py",
+    "/app/backend/tests/_qa17_token.py",
+    "/app/test_reports/pytest/iter17_results.xml",
+    "/app/test_reports/pytest/iter17_full.xml"
+  ],
+  "action_items": [
+    "(LOW) Aplicar maskPhone ao telefone/WhatsApp vindos do lookup por NIF e na apresentação do link tel: na ficha da cobrança",
+    "(LOW) forgot-password: invalidar tokens anteriores do mesmo email + rate-limit por email/IP",
+    "(LOW) reset-password: identificar o utilizador por user_id (guardado no token) em vez de email",
+    "(LOW) Substituir inputs de data nativos pelo Calendar shadcn (pendente desde a it.5)"
+  ],
+  "critical_code_review_comments": [
+    "server.py cep_lookup: chamada externa síncrona-por-request sem cache — geoapi.pt/ViaCEP em cada blur/clique; adicionar cache curto (TTL em memória/Mongo) e timeout já existente (8s) documentado; falha externa devolve {found:false} silenciosamente (log só warning).",
+    "server.py lookup_client continua a carregar até 1000 cobranças e filtrar em Python (O(n) por lookup) — indexar nif normalizado (comentário repetido da iteração 16).",
+    "password_resets não tem índice TTL em expires_at — os documentos acumulam indefinidamente; adicionar expireAfterSeconds ou limpeza periódica.",
+    "server.py com 1487 linhas excede o limite de 700 — dividir em routers (auth, charges, reports, superadmin, utils)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration17.py",
+    "/app/backend/tests/_qa17_token.py"
+  ],
+  "success_rate": {"backend": "100% (74/74)", "frontend": "100% (todas as 8 frentes da it.17 validadas)"},
+  "seed_data_creation": "Nenhuma cobrança criada. Tokens de reset gerados para import.teste@example.com foram usados/apagados (password_resets limpo para esse email). Password original teste123456 reposta e verificada.",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "denis.ferreira0909@gmail.com / Cobrancas2026! (admin+superadmin), cobrador@techflow.pt / Cobrador2026!, import.teste@example.com / teste123456 — todas verificadas com login 200 no final",
+  "context_for_next_testing_agent": "Iteração 17 passou integralmente (74/74 backend, frontend 100%). Usar /app/backend/tests/test_iteration17.py como regressão (inclui E2E de reset de password que REPÕE a password original — não interromper esse teste a meio). Helper /app/backend/tests/_qa17_token.py: 'python3 _qa17_token.py token|restore|cleanup' para obter/repor/limpar tokens de reset de import.teste@example.com. print-report-dashboard/weekly estão hidden no ecrã (só print) — inspecionar via page.evaluate, não wait_for_selector visible. Nas listas, as linhas de grupo não navegam: clicar numa linha que contenha 'FT-'/'FAT-'. Bug LOW da it.16 (warning recharts width(-1)) já não reproduz. Restam apenas issues de design LOW (máscara em dados de lookup, date pickers nativos).",
+  "rca_of_the_issue": "Sem defeitos funcionais. As 2 falhas iniciais nos meus testes novos foram assunções erradas do teste (rota /api/charges/lookup-client em vez de /api/utils/lookup-client e chaves do /api/dashboard: total_debt/recovered/critical_debt/success_rate/buckets em vez de aging/kpis) — corrigidas no ficheiro de teste, sem alteração de código de produção."
+}

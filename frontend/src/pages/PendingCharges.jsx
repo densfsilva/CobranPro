@@ -10,12 +10,15 @@ import { useAuth } from "@/context/AuthContext";
 import ChargeFormDialog from "@/components/ChargeFormDialog";
 import ImportPdfDialog from "@/components/ImportPdfDialog";
 import WhatsAppQuickButton from "@/components/WhatsAppQuickButton";
+import PeriodFilter, { periodSubtitle } from "@/components/PeriodFilter";
 import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
 
 export default function PendingCharges() {
   const { isAdmin } = useAuth();
   const [charges, setCharges] = useState([]);
   const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -32,8 +35,9 @@ export default function PendingCharges() {
       .filter((c) => !search ||
         c.debtor_name.toLowerCase().includes(search.toLowerCase()) ||
         c.invoice_number.toLowerCase().includes(search.toLowerCase()))
+      .filter((c) => (!from || c.due_date >= from) && (!to || c.due_date <= to))
       .sort((a, b) => b.days_overdue - a.days_overdue);
-  }, [charges, search]);
+  }, [charges, search, from, to]);
 
   const total = pendentes.reduce((s, c) => s + c.amount, 0);
 
@@ -88,15 +92,18 @@ export default function PendingCharges() {
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">
-        <div className="relative max-w-sm mb-4">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Pesquisar devedor ou ${t("invoiceLower")}...`}
-            data-testid="pendentes-search-input"
-            className="pl-9 bg-background"
-          />
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="relative max-w-sm flex-1 min-w-[200px]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Pesquisar devedor ou ${t("invoiceLower")}...`}
+              data-testid="pendentes-search-input"
+              className="pl-9 bg-background"
+            />
+          </div>
+          <PeriodFilter from={from} to={to} onFrom={setFrom} onTo={setTo} testid="pendentes" />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -169,7 +176,7 @@ export default function PendingCharges() {
 
       <PrintReport
         title={`Listagem de Cobranças Pendentes`}
-        subtitle={search ? `Filtro: "${search}"` : "Todas as cobranças por liquidar"}
+        subtitle={`${search ? `Filtro: "${search}"` : "Todas as cobranças por liquidar"}${periodSubtitle(from, to)}`}
         testid="print-report-pendentes"
       >
         <table style={printTableStyle}>

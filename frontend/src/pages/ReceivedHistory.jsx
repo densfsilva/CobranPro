@@ -7,12 +7,15 @@ import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
+import PeriodFilter, { periodSubtitle } from "@/components/PeriodFilter";
 
 const fmtPaid = (iso) => (iso ? new Date(iso).toLocaleDateString("pt-PT") : "—");
 
 export default function ReceivedHistory() {
   const [charges, setCharges] = useState([]);
   const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,8 +28,9 @@ export default function ReceivedHistory() {
       .filter((c) => !search ||
         c.debtor_name.toLowerCase().includes(search.toLowerCase()) ||
         c.invoice_number.toLowerCase().includes(search.toLowerCase()))
+      .filter((c) => (!from || c.due_date >= from) && (!to || c.due_date <= to))
       .sort((a, b) => b.due_date.localeCompare(a.due_date));
-  }, [charges, search]);
+  }, [charges, search, from, to]);
 
   const total = recebidos.reduce((s, c) => s + c.amount, 0);
 
@@ -54,15 +58,18 @@ export default function ReceivedHistory() {
       </div>
 
       <div className="bg-card border border-border rounded-xl p-5">
-        <div className="relative max-w-sm mb-4">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Pesquisar devedor ou ${t("invoiceLower")}...`}
-            data-testid="recebidos-search-input"
-            className="pl-9 bg-background"
-          />
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="relative max-w-sm flex-1 min-w-[200px]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Pesquisar devedor ou ${t("invoiceLower")}...`}
+              data-testid="recebidos-search-input"
+              className="pl-9 bg-background"
+            />
+          </div>
+          <PeriodFilter from={from} to={to} onFrom={setFrom} onTo={setTo} testid="recebidos" />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -106,7 +113,7 @@ export default function ReceivedHistory() {
           </table>
         </div>
       </div>
-      <PrintReport title="Histórico de Recebidos" subtitle={search ? `Filtro: "${search}"` : "Todas as cobranças liquidadas"} testid="print-report-recebidos">
+      <PrintReport title="Histórico de Recebidos" subtitle={`${search ? `Filtro: "${search}"` : "Todas as cobranças liquidadas"}${periodSubtitle(from, to)}`} testid="print-report-recebidos">
         <table style={printTableStyle}>
           <thead>
             <tr>{["Devedor", t("invoice"), "Vencimento", "Recebimento", "Valor", "Estado"].map((h) => <th key={h} style={h === "Valor" ? printThRightStyle : printThStyle}>{h}</th>)}</tr>

@@ -109,6 +109,7 @@ export default function Settings() {
                 className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-secondary transition-colors duration-200">
                 <Upload size={15} /> Carregar Logótipo
               </button>
+              <p className="text-xs text-muted-foreground" data-testid="logo-size-hint">Tamanho padrão: 400x120px (PNG transparente)</p>
               {form.logo_base64 && (
                 <button type="button" onClick={() => setForm({ ...form, logo_base64: "" })} data-testid="logo-remove-btn"
                   className="text-xs text-rose-400 hover:underline block">Remover logótipo</button>

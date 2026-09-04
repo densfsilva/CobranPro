@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Search } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { idLabel, idPlaceholder, getCountry } from "@/lib/format";
+import { maskPhone } from "@/lib/masks";
 import { t } from "@/lib/i18n";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -18,6 +20,7 @@ const EMPTY = {
 export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge = null }) {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
+  const [lookupBusy, setLookupBusy] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -31,17 +34,47 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
     }
   }, [open, charge]);
 
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const set = (k) => (e) => {
+    const v = (k === "debtor_phone" || k === "whatsapp") ? maskPhone(e.target.value, getCountry()) : e.target.value;
+    setForm({ ...form, [k]: v });
+  };
 
   const lookupClient = async () => {
     if (charge || !form.debtor_nif.trim()) return;
+    setLookupBusy("nif");
     try {
       const { data } = await api.get("/charges/lookup-client", { params: { nif: form.debtor_nif } });
       if (data.found && data.client) {
-        setForm((prev) => ({ ...prev, ...data.client }));
+        const c = data.client;
+        const country = getCountry();
+        setForm((prev) => ({
+          ...prev,
+          ...c,
+          debtor_phone: c.debtor_phone ? maskPhone(c.debtor_phone, country) : c.debtor_phone,
+          whatsapp: c.whatsapp ? maskPhone(c.whatsapp, country) : c.whatsapp,
+        }));
         toast.success("Cliente existente — dados preenchidos automaticamente");
       }
-    } catch { /* lookup silencioso */ }
+    } catch { /* lookup silencioso */ } finally { setLookupBusy(""); }
+  };
+
+  const cepLookup = async () => {
+    if (!form.addr_cp.trim()) return;
+    setLookupBusy("cep");
+    try {
+      const { data } = await api.get("/utils/cep-lookup", { params: { cep: form.addr_cp } });
+      if (data.found) {
+        setForm((prev) => ({
+          ...prev,
+          addr_rua: data.rua || prev.addr_rua,
+          addr_localidade: data.localidade || prev.addr_localidade,
+          addr_estado: data.estado || prev.addr_estado,
+        }));
+        toast.success("Morada preenchida pelo Código Postal");
+      } else {
+        toast.info("Código Postal não encontrado — preencha manualmente");
+      }
+    } catch { /* lookup silencioso */ } finally { setLookupBusy(""); }
   };
 
   const submit = async (e) => {
@@ -66,6 +99,7 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
   };
 
   const fields = [
+    ["debtor_nif", idLabel(), "text", idPlaceholder(), false],
     ["debtor_name", "Nome do Cliente", "text", "Ex: Marta Sousa", true],
     ["invoice_number", `Nº ${t("invoice")}`, "text", "FT-2026/001", true],
     ["amount", "Valor", "number", "0.00", true],
@@ -74,14 +108,15 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
     ["debtor_email2", "Email 2", "email", "alternativo@email.pt", false],
     ["debtor_phone", t("mobile"), "tel", "+351 9xx xxx xxx", false],
     ["whatsapp", "WhatsApp", "tel", "+351 9xx xxx xxx", false],
-    ["debtor_nif", idLabel(), "text", idPlaceholder(), false],
     ["bank1", "Conta Bancária 1 (IBAN/PIX)", "text", "", false],
     ["bank2", "Conta Bancária 2", "text", "", false],
+    ["addr_cp", getCountry() === "BR" ? "CEP" : "Código Postal", "text", "", false],
     ["addr_rua", "Rua", "text", "Rua, nº, andar", false],
     ["addr_localidade", "Localidade", "text", "", false],
-    ["addr_cp", getCountry() === "BR" ? "CEP" : "Código Postal", "text", "", false],
     ["addr_estado", getCountry() === "BR" ? "Estado (UF)" : "Distrito", "text", "", false],
   ];
+
+  const LOOKUPS = { debtor_nif: lookupClient, addr_cp: cepLookup };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -94,8 +129,20 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
           {fields.map(([key, label, type, ph, req]) => (
             <div key={key} className={`space-y-1.5 ${key === "debtor_name" ? "sm:col-span-2" : ""}`}>
               <Label htmlFor={key}>{label}</Label>
-              <Input id={key} data-testid={`charge-form-${key.replace(/_/g, "-")}`} type={type} step={type === "number" ? "0.01" : undefined}
-                required={req} value={form[key]} onChange={set(key)} onBlur={key === "debtor_nif" ? lookupClient : undefined} placeholder={ph} className="bg-background" />
+              {LOOKUPS[key] ? (
+                <div className="relative">
+                  <Input id={key} data-testid={`charge-form-${key.replace(/_/g, "-")}`} type={type}
+                    required={req} value={form[key]} onChange={set(key)} onBlur={LOOKUPS[key]} placeholder={ph} className="bg-background pr-10" />
+                  <button type="button" onClick={LOOKUPS[key]} disabled={lookupBusy === (key === "debtor_nif" ? "nif" : "cep")}
+                    data-testid={`charge-form-${key.replace(/_/g, "-")}-lookup-btn`} title="Procurar"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-muted-foreground hover:text-brand hover:bg-brand-soft transition-colors duration-150">
+                    <Search size={15} className={lookupBusy === (key === "debtor_nif" ? "nif" : "cep") ? "animate-pulse" : ""} />
+                  </button>
+                </div>
+              ) : (
+                <Input id={key} data-testid={`charge-form-${key.replace(/_/g, "-")}`} type={type} step={type === "number" ? "0.01" : undefined}
+                  required={req} value={form[key]} onChange={set(key)} placeholder={ph} className="bg-background" />
+              )}
             </div>
           ))}
           <div className="space-y-1.5 sm:col-span-2">

@@ -22,6 +22,13 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-04 — Iteração 17: UX, máscaras e relatórios executivos (CONCLUÍDA)
+- Nova Cobrança: NIF/CNPJ é o 1º campo com lupa (blur ou clique) → auto-preenche cliente via /api/charges/lookup-client; lupa no CEP/CP → GET /api/utils/cep-lookup (ViaCEP BR, geoapi.pt PT, cache 5min só de sucessos) preenche Rua/Localidade/Estado
+- Máscaras de telefone automáticas PT (XXX XXX XXX) / BR ((XX) XXXXX-XXXX) em Telemóvel/WhatsApp, incl. dados vindos do lookup; telefones na ficha são links tel: (lib/masks.js)
+- Relatórios: cabeçalho PDF executivo (só logo + nome); filtros de período (Vencimento de/até) nas 4 abas via PeriodFilter; gráficos de barras CSS para impressão (PrintBarChart) no PDF do Dashboard (antiguidade) e no Resumo Semanal (contactos por tipo); Resumo Semanal detalha cada ação (Data/Tipo/Cliente/Resumo)
+- Recuperação de senha: link 'Esqueceu a sua senha?' no login → POST /api/auth/forgot-password (token secrets 32B, 1h, uso único, user_id, invalida tokens anteriores, sem enumeração) → email Resend branded → /reset-password → POST /api/auth/reset-password; Configurações: aviso 'Tamanho padrão: 400x120px (PNG transparente)' no upload de logo
+- Testes: 74/74 pytest (test_iteration17.py) + 8/8 frentes frontend (iteration_7.json); nits corrigidos (máscara no lookup/tel:, tokens reset, cache CEP negativo). Nota: geoapi.pt é gratuito com limite — teste PT faz skip se rate-limited; produção intensiva deve pedir chave em geoapi.pt/request-api-key
+
 ### 2026-09-04 — Iteração 16: Consolidação final + Super Admin (CONCLUÍDA)
 - Agrupamento por cliente também no Dashboard (dash-group-{i} com total + colapsar); Pendentes já agrupava
 - Auto-preenchimento por NIF/CNPJ: GET /api/charges/lookup-client?nif= (admin, compara só dígitos) preenche Nome/Emails/Contactos/Bancos/Endereço no blur do campo NIF em Nova Cobrança

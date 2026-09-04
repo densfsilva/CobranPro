@@ -137,6 +137,7 @@ class TestSuperAdminCompanies:
 
 
 # ---------- Block / unblock E2E ----------
+@pytest.mark.xdist_group("import_company")
 class TestBlockEnforcement:
     @pytest.fixture(scope="class", autouse=True)
     def ensure_unblocked(self, super_client):

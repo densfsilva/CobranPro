@@ -14,6 +14,7 @@ import Team from "@/pages/Team";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import SuperAdmin from "@/pages/SuperAdmin";
+import ResetPassword from "@/pages/ResetPassword";
 import AppLayout from "@/components/AppLayout";
 
 function Protected({ children, adminOnly = false, superOnly = false }) {
@@ -42,6 +43,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<AuthPage />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<Protected><Home /></Protected>} />
           <Route path="/pendentes" element={<Protected><PendingCharges /></Protected>} />
           <Route path="/negociacao" element={<Protected><NegotiationCharges /></Protected>} />
