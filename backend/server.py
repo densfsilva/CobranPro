@@ -519,23 +519,26 @@ CEP_CACHE: dict = {}
 @api_router.get("/utils/cep-lookup")
 async def cep_lookup(cep: str = "", ctx: dict = Depends(get_current_context)):
     digits = re.sub(r"\D", "", cep or "")
-    country = ctx["company"].get("country", "PT")
-    cache_key = (country, digits)
+    # 8 dígitos → CEP Brasil (ViaCEP); 7 dígitos → Código Postal Portugal (geoapi.pt), independente do país da empresa
+    if len(digits) not in (7, 8):
+        return {"found": False}
+    cache_key = digits
     cached = CEP_CACHE.get(cache_key)
     if cached and time.time() - cached[0] < 300:
         return cached[1]
     result = None
     try:
         async with httpx.AsyncClient(timeout=8) as http:
-            if country == "BR":
-                if len(digits) != 8:
-                    return {"found": False}
+            if len(digits) == 8:
                 r = await http.get(f"https://viacep.com.br/ws/{digits}/json/")
+                if r.status_code != 200:
+                    return {"found": False, "unavailable": True}
                 d = r.json()
-                result = {"found": False} if d.get("erro") else {"found": True, "rua": d.get("logradouro", ""), "localidade": d.get("localidade", ""), "estado": d.get("uf", "")}
+                result = {"found": False} if d.get("erro") else {
+                    "found": True, "pais": "BR", "rua": d.get("logradouro", ""), "bairro": d.get("bairro", ""),
+                    "localidade": d.get("localidade", ""), "estado": d.get("uf", ""),
+                }
             else:
-                if len(digits) != 7:
-                    return {"found": False}
                 r = await http.get(f"https://json.geoapi.pt/cp/{digits[:4]}-{digits[4:]}")
                 d = r.json()
                 if not isinstance(d, dict):
@@ -545,7 +548,7 @@ async def cep_lookup(cep: str = "", ctx: dict = Depends(get_current_context)):
                         return {"found": False, "unavailable": True}
                     return {"found": False}
                 ruas = d.get("ruas") or []
-                result = {"found": True, "rua": ruas[0] if len(ruas) == 1 else "", "localidade": d.get("Concelho", ""), "estado": d.get("Distrito", "")}
+                result = {"found": True, "pais": "PT", "rua": ruas[0] if len(ruas) == 1 else "", "localidade": d.get("Concelho", ""), "estado": d.get("Distrito", "")}
     except Exception as e:
         logger.warning("CEP lookup falhou: %s", e)
         return {"found": False, "unavailable": True}

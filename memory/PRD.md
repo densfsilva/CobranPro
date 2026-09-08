@@ -22,6 +22,13 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-09-08 — Iteração 19: Fluxo de dados BR/PT no formulário (CNPJ, CEP, prefixos) (CONCLUÍDA)
+- Lupa robusta: máscara automática do CNPJ (XX.XXX.XXX/XXXX-XX) em modo BR e NIF (9 dígitos) em PT (masks.js: maskTaxId/taxIdComplete); lookup-client disparado automaticamente ao completar os dígitos (não só no blur), sem repetição para o mesmo valor (ref looked); dados do lookup entram já mascarados (CNPJ, CEP, telefones)
+- CEP inteligente: backend /api/utils/cep-lookup deteta o formato pelo nº de dígitos (8 → ViaCEP Brasil, 7 → geoapi.pt Portugal) independentemente do país da empresa; devolve pais + bairro (BR); cache por dígitos. Frontend: máscara XXXXX-XXX (BR) / XXXX-XXX (PT) e pesquisa automática ao completar; mensagens "CEP"/"Código Postal" conforme país
+- Prefixos e placeholders: Nº do Documento pré-preenchido com "NF-" (BR) ou "FT-" (PT) em novas cobranças (invoicePrefix); placeholders/labels adaptados (Celular (11) 98765-4321, cliente@email.com.br, Chave PIX, Cidade, Estado (UF)); botão Salvar/Guardar; máscara de telefone (XX) XXXXX-XXXX em BR mantida
+- Vercel: /app/frontend/vercel.json (framework CRA, rewrites SPA); deployment_agent PASS (0 findings). Nota: Vercel serve só o frontend (root = frontend, env REACT_APP_BACKEND_URL); backend FastAPI + MongoDB continuam no deploy Emergent
+- Testes: 74/74 pytest; E2E por screenshot em modo BR (12345678000190 → MERCADO BOM PRECO LTDA; CEP 30130010 → Praça Sete de Setembro/Belo Horizonte/MG; WhatsApp (31) 99999-8888) e PT (245678901 → Marta Sousa; 4000069 → Porto/Porto)
+
 ### 2026-09-04 — Iteração 18: Fix crítico de agrupamento, lookups e Super Admin (CONCLUÍDA)
 - Agrupamento por cliente passa a usar clientGroupKey (NIF/CNPJ só dígitos; fallback nome normalizado) no Dashboard e Pendentes — elimina grupos duplicados por variações de nome (lib/masks.js)
 - Lupa NIF: frontend normaliza input (remove pontos/traços) + backend já normalizava; feedback ao clique ("Cliente não encontrado…") e erro de rede comunicado; verificado: 245.678.901 e 245678-901 → found:true (Marta Sousa), HTTP 200
