@@ -84,18 +84,69 @@ def serialize_user(doc: dict) -> dict:
     }
 
 
+COMPANY_ADDR_FIELDS = ("addr_rua", "addr_numero", "addr_bairro", "addr_cidade", "addr_cp", "addr_estado")
+
+
+def bank_display(acc: dict) -> str:
+    if acc.get("iban_pix"):
+        return acc["iban_pix"]
+    parts = [acc.get("banco", ""), f"Ag. {acc['agencia']}" if acc.get("agencia") else "", f"Conta {acc['conta']}" if acc.get("conta") else ""]
+    return " · ".join(p for p in parts if p)
+
+
+def company_bank_line(doc: dict) -> str:
+    accs = doc.get("bank_accounts") or []
+    if accs:
+        return bank_display(accs[0])
+    return doc.get("iban", "") or ""
+
+
+def company_address_line(doc: dict) -> str:
+    if not any(doc.get(k) for k in COMPANY_ADDR_FIELDS):
+        return doc.get("address", "") or ""
+    rua = " ".join(p for p in [doc.get("addr_rua"), doc.get("addr_numero")] if p)
+    cp_cidade = " ".join(p for p in [doc.get("addr_cp"), doc.get("addr_cidade")] if p)
+    return ", ".join(p for p in [rua, doc.get("addr_bairro"), cp_cidade, doc.get("addr_estado")] if p)
+
+
+def new_license_id() -> str:
+    return f"CBP-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"
+
+
+def default_subscription(is_owner: bool = False) -> dict:
+    if is_owner:
+        return {"plan": "Proprietário", "plan_price": 0.0, "license_id": new_license_id(), "license_valid_until": None}
+    return {"plan": "Trial", "plan_price": 0.0, "license_id": new_license_id(), "license_valid_until": (date.today() + timedelta(days=30)).isoformat()}
+
+
+def license_status(doc: dict) -> str:
+    if doc.get("blocked"):
+        return "bloqueada"
+    vu = doc.get("license_valid_until")
+    if vu and vu < date.today().isoformat():
+        return "expirada"
+    return "ativa"
+
+
 def serialize_company(doc: dict) -> dict:
     return {
         "id": doc["id"],
         "email": doc["email"],
         "company_name": doc["company_name"],
         "nif": doc.get("nif", ""),
-        "iban": doc.get("iban", ""),
+        "iban": company_bank_line(doc),
+        "bank_accounts": doc.get("bank_accounts") or [],
         "country": doc.get("country", "PT"),
-        "address": doc.get("address", ""),
+        "address": company_address_line(doc),
+        **{k: doc.get(k, "") or "" for k in COMPANY_ADDR_FIELDS},
         "google_client_id": doc.get("google_client_id", ""),
         "primary_color": doc.get("primary_color", "#2563EB"),
         "logo_base64": doc.get("logo_base64", ""),
+        "plan": doc.get("plan", "Trial"),
+        "plan_price": doc.get("plan_price", 0.0),
+        "license_id": doc.get("license_id", ""),
+        "license_valid_until": doc.get("license_valid_until"),
+        "license_status": license_status(doc),
         "created_at": doc.get("created_at"),
     }
 
@@ -126,6 +177,14 @@ def compute_aging(charge: dict) -> dict:
         bucket = "roxo"
     charge["days_overdue"] = days
     charge["bucket"] = bucket
+    paid_at = charge.get("paid_at")
+    if charge.get("status") == "paga" and paid_at:
+        try:
+            charge["paid_days_late"] = max((date.fromisoformat(paid_at[:10]) - due).days, 0)
+        except ValueError:
+            charge["paid_days_late"] = None
+    else:
+        charge["paid_days_late"] = None
     return charge
 
 
@@ -177,12 +236,26 @@ class LoginInput(BaseModel):
     password: str
 
 
+class BankAccount(BaseModel):
+    banco: str = Field(default="", max_length=120)
+    agencia: str = Field(default="", max_length=40)
+    conta: str = Field(default="", max_length=60)
+    iban_pix: str = Field(default="", max_length=120)
+
+
 class BrandingInput(BaseModel):
     company_name: Optional[str] = None
     nif: Optional[str] = None
     iban: Optional[str] = None
     country: Optional[str] = None
     address: Optional[str] = None
+    addr_rua: Optional[str] = None
+    addr_numero: Optional[str] = None
+    addr_bairro: Optional[str] = None
+    addr_cidade: Optional[str] = None
+    addr_cp: Optional[str] = None
+    addr_estado: Optional[str] = None
+    bank_accounts: Optional[List[BankAccount]] = None
     google_client_id: Optional[str] = None
     primary_color: Optional[str] = None
     logo_base64: Optional[str] = None
@@ -195,8 +268,6 @@ class ChargeInput(BaseModel):
     debtor_nif: Optional[str] = ""
     debtor_email2: Optional[str] = ""
     whatsapp: Optional[str] = ""
-    bank1: Optional[str] = ""
-    bank2: Optional[str] = ""
     addr_rua: Optional[str] = ""
     addr_localidade: Optional[str] = ""
     addr_cp: Optional[str] = ""
@@ -205,6 +276,7 @@ class ChargeInput(BaseModel):
     amount: float = Field(gt=0)
     due_date: str
     status: str = "pendente"
+    paid_at: Optional[str] = None
     next_contact_date: Optional[str] = None
     promise_date: Optional[str] = None
     agreed_amount: Optional[float] = None
@@ -225,11 +297,13 @@ async def register(data: RegisterInput):
         "company_name": data.company_name.strip(),
         "nif": "",
         "iban": "",
+        "bank_accounts": [],
         "country": "PT",
         "blocked": False,
         "google_client_id": "",
         "primary_color": "#2563EB",
         "logo_base64": "",
+        **default_subscription(email == SUPER_ADMIN_EMAIL),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.companies.insert_one(company)
@@ -460,6 +534,20 @@ async def update_branding(data: BrandingInput, ctx: dict = Depends(require_admin
         raise HTTPException(status_code=400, detail="Logótipo demasiado grande (máx ~1.5MB)")
     if "company_name" in updates:
         updates["company_name"] = updates["company_name"].strip()
+    if "bank_accounts" in updates:
+        if len(updates["bank_accounts"]) > 10:
+            raise HTTPException(status_code=400, detail="Máximo de 10 contas bancárias")
+        updates["bank_accounts"] = [a for a in updates["bank_accounts"] if any(a.values())]
+    if "iban" in updates and "bank_accounts" not in updates:
+        accs = list(company.get("bank_accounts") or [])
+        if accs:
+            accs[0] = {**accs[0], "iban_pix": updates["iban"]}
+        elif updates["iban"]:
+            accs = [{"banco": "", "agencia": "", "conta": "", "iban_pix": updates["iban"]}]
+        updates["bank_accounts"] = accs
+    if "address" in updates and not any(k in updates for k in COMPANY_ADDR_FIELDS):
+        updates.update({k: "" for k in COMPANY_ADDR_FIELDS})
+        updates["addr_rua"] = updates["address"]
     if updates:
         await db.companies.update_one({"id": company["id"]}, {"$set": updates})
     updated = await db.companies.find_one({"id": company["id"]}, {"_id": 0})
@@ -498,7 +586,7 @@ async def create_charge(data: ChargeInput, ctx: dict = Depends(require_admin)):
     return compute_aging(charge)
 
 
-CLIENT_COPY_FIELDS = ("debtor_name", "debtor_email", "debtor_email2", "debtor_phone", "whatsapp", "debtor_nif", "bank1", "bank2", "addr_rua", "addr_localidade", "addr_cp", "addr_estado")
+CLIENT_COPY_FIELDS = ("debtor_name", "debtor_email", "debtor_email2", "debtor_phone", "whatsapp", "debtor_nif", "addr_rua", "addr_localidade", "addr_cp", "addr_estado")
 
 
 @api_router.get("/charges/lookup-client")
