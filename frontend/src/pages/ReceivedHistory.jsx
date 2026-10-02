@@ -15,8 +15,8 @@ import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdS
 import PeriodFilter, { periodSubtitle } from "@/components/PeriodFilter";
 
 const fmtPaid = (iso) => (iso ? fmtDate(iso.slice(0, 10)) : "—");
-const lateLabel = (d) => (d == null ? "—" : d === 0 ? "Em dia" : `${d}d`);
-const lateCls = (d) => (d == null ? "bg-zinc-500/15 text-zinc-400 border-zinc-500/30" : d === 0 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : d <= 30 ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-rose-500/15 text-rose-400 border-rose-500/30");
+const lateLabel = (d) => String(Math.max(d ?? 0, 0));
+const lateCls = (d) => (!d || d <= 0 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : d <= 30 ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-rose-500/15 text-rose-400 border-rose-500/30");
 
 export default function ReceivedHistory() {
   const { isAdmin } = useAuth();

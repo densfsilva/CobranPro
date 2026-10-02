@@ -178,11 +178,12 @@ def compute_aging(charge: dict) -> dict:
     charge["days_overdue"] = days
     charge["bucket"] = bucket
     paid_at = charge.get("paid_at")
-    if charge.get("status") == "paga" and paid_at:
+    if charge.get("status") == "paga":
+        ref = paid_at or charge.get("created_at") or today.isoformat()
         try:
-            charge["paid_days_late"] = max((date.fromisoformat(paid_at[:10]) - due).days, 0)
+            charge["paid_days_late"] = max((date.fromisoformat(ref[:10]) - due).days, 0)
         except ValueError:
-            charge["paid_days_late"] = None
+            charge["paid_days_late"] = 0
     else:
         charge["paid_days_late"] = None
     return charge
@@ -1732,6 +1733,8 @@ async def seed_sample_charges(company_id: str):
             "due_date": due,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
+        if doc.get("status") == "paga":
+            doc["paid_at"] = f"{(date.today() + timedelta(days=s['due_offset'] + 12)).isoformat()}T12:00:00+00:00"
         docs.append(doc)
     await db.charges.insert_many(docs)
 
@@ -1757,6 +1760,10 @@ async def startup():
         if "bank_accounts" not in comp:
             sets["bank_accounts"] = [{"banco": "", "agencia": "", "conta": "", "iban_pix": comp["iban"]}] if comp.get("iban") else []
         await db.companies.update_one({"id": comp["id"]}, {"$set": sets})
+
+    # Backfill: cobranças pagas sem data de recebimento → usa a data de criação do registo
+    async for ch in db.charges.find({"status": "paga", "$or": [{"paid_at": None}, {"paid_at": {"$exists": False}}]}, {"_id": 0, "id": 1, "created_at": 1}):
+        await db.charges.update_one({"id": ch["id"]}, {"$set": {"paid_at": ch.get("created_at") or datetime.now(timezone.utc).isoformat()}})
 
     # Migração: empresas antigas com credenciais na própria empresa → coleção users
     async for comp in db.companies.find({"password_hash": {"$exists": True}}):
