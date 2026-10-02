@@ -61,8 +61,9 @@ class TestLookupClient:
         c = data["client"]
         assert c["debtor_name"] == "Marta Sousa"
         assert c["debtor_nif"].replace(" ", "") == "245678901"
-        for k in ("debtor_email", "debtor_phone", "whatsapp", "addr_rua", "addr_localidade", "addr_cp", "addr_estado", "bank1", "bank2", "debtor_email2"):
+        for k in ("debtor_email", "debtor_phone", "whatsapp", "addr_rua", "addr_localidade", "addr_cp", "addr_estado", "debtor_email2"):
             assert k in c
+        assert "bank1" not in c and "bank2" not in c
 
     def test_lookup_ignores_non_digits(self, super_client):
         r = super_client.get(f"{API}/charges/lookup-client", params={"nif": "245.678.901"})

@@ -54,3 +54,11 @@ export function clientGroupKey(c) {
   if (nif) return `nif:${nif}`;
   return `nome:${(c.debtor_name || "").trim().toLowerCase().replace(/\s+/g, " ")}`;
 }
+
+export function clientPath(c) {
+  return `/clientes/${encodeURIComponent(clientGroupKey(c))}`;
+}
+
+export function testIdSafe(key) {
+  return (key || "").replace(/[^a-zA-Z0-9]+/g, "-");
+}

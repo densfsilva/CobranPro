@@ -1,43 +1,33 @@
+import { useState } from "react";
 import { toast } from "sonner";
 import { MessageCircle } from "lucide-react";
-import { api } from "@/lib/api";
-import { fmtDate } from "@/lib/badges";
 import { t } from "@/lib/i18n";
-import { useAuth } from "@/context/AuthContext";
-
-export function buildWhatsAppMessage(charge, companyName = "") {
-  const base = `Olá ${charge.debtor_name}, vimos que a ${t("invoiceLower")} ${charge.invoice_number} com vencimento em ${fmtDate(charge.due_date)} ainda está pendente. Podemos ajudar?`;
-  return companyName ? `${base}\n\n— ${companyName} · Cobranpro` : base;
-}
+import MessageModal from "@/components/MessageModal";
 
 export default function WhatsAppQuickButton({ charge, onLogged }) {
-  const { company } = useAuth();
-  const handle = async (e) => {
+  const [open, setOpen] = useState(false);
+  const number = charge.whatsapp || charge.debtor_phone;
+
+  const handle = (e) => {
     e.stopPropagation();
-    if (!charge.debtor_phone) {
+    if (!number) {
       toast.error(`Esta cobrança não tem ${t("mobile").toLowerCase()} do devedor`);
       return;
     }
-    const msg = buildWhatsAppMessage(charge, company?.company_name);
-    const phone = charge.debtor_phone.replace(/[^\d]/g, "");
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
-    try {
-      await api.post(`/charges/${charge.id}/interactions`, { type: "whatsapp", note: `WhatsApp aberto: "${msg}"` });
-      onLogged?.();
-      toast.success("WhatsApp aberto — atividade registada na timeline");
-    } catch {
-      toast.info("WhatsApp aberto");
-    }
+    setOpen(true);
   };
 
   return (
-    <button
-      onClick={handle}
-      data-testid={`wa-quick-${charge.id}`}
-      title={charge.debtor_phone ? `WhatsApp: ${charge.debtor_phone}` : "Sem telemóvel"}
-      className="p-2 rounded-lg text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors duration-200"
-    >
-      <MessageCircle size={16} />
-    </button>
+    <>
+      <button onClick={handle} data-testid={`wa-quick-${charge.id}`} title={number ? `WhatsApp: ${number}` : "Sem telemóvel"}
+        className="p-2 rounded-lg text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors duration-200">
+        <MessageCircle size={16} />
+      </button>
+      {open && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <MessageModal channel="whatsapp" charge={charge} open={open} onOpenChange={setOpen} onLogged={onLogged} defaultTemplate="rapido" />
+        </div>
+      )}
+    </>
   );
 }

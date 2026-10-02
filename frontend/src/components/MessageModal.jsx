@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { MessageCircle, Mail, Copy, ExternalLink, Send } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
@@ -11,6 +11,10 @@ import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
 const TEMPLATES = {
+  rapido: {
+    label: "Mensagem Rápida",
+    text: "Olá [Nome], vimos que a fatura [Fatura] com vencimento em [Data Vencimento] ainda está pendente. Podemos ajudar?\n\n— [Empresa] · Cobranpro",
+  },
   lembrete: {
     label: "1º Lembrete",
     text: "Olá [Nome],\n\nConstatámos que a fatura [Fatura], no valor de [Valor], com vencimento a [Data Vencimento], se encontra em atraso há [Dias] dias.\n\nAgradecemos a regularização para o IBAN [IBAN], com a maior brevidade possível.\n\nCom os melhores cumprimentos,\n[Empresa]",
@@ -31,18 +35,22 @@ export function buildMessage(templateKey, charge, company) {
     .replaceAll("[Fatura]", charge.invoice_number)
     .replaceAll("[Valor]", money(charge.amount))
     .replaceAll("[Data Vencimento]", fmtDate(charge.due_date))
-    .replaceAll("[Dias]", String(charge.days_overdue))
+    .replaceAll("[Dias]", String(charge.days_overdue ?? 0))
     .replaceAll("[IBAN]", company.iban || "—")
     .replaceAll("[Empresa]", company.company_name)
     .replaceAll("fatura", t("invoiceLower"))
     .replaceAll("o IBAN", t("bankRef"));
 }
 
-export default function MessageModal({ channel, charge, open, onOpenChange, onLogged }) {
+export default function MessageModal({ channel, charge, open, onOpenChange, onLogged, defaultTemplate = "lembrete" }) {
   const { company } = useAuth();
-  const [template, setTemplate] = useState("lembrete");
+  const [template, setTemplate] = useState(defaultTemplate);
   const [customText, setCustomText] = useState(null);
   const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (open) { setTemplate(defaultTemplate); setCustomText(null); }
+  }, [open, defaultTemplate]);
 
   const baseText = useMemo(
     () => (charge ? buildMessage(template, charge, company) : ""),
@@ -52,6 +60,7 @@ export default function MessageModal({ channel, charge, open, onOpenChange, onLo
 
   if (!charge) return null;
   const isWhatsApp = channel === "whatsapp";
+  const waNumber = charge.whatsapp || charge.debtor_phone || "";
 
   const changeTemplate = (k) => {
     setTemplate(k);
@@ -88,7 +97,7 @@ export default function MessageModal({ channel, charge, open, onOpenChange, onLo
 
   const launch = () => {
     if (isWhatsApp) {
-      const phone = (charge.debtor_phone || "").replace(/[^\d]/g, "");
+      const phone = waNumber.replace(/[^\d]/g, "");
       window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank");
     } else {
       const subject = `Lembrete de pagamento — ${t("invoice")} ${charge.invoice_number}`;
@@ -146,7 +155,7 @@ export default function MessageModal({ channel, charge, open, onOpenChange, onLo
             className="bg-background font-mono-num text-xs leading-relaxed resize-none"
           />
           <p className="text-xs text-muted-foreground">
-            Destinatário: {isWhatsApp ? charge.debtor_phone || "sem telemóvel" : charge.debtor_email || "sem email"} · Edite o texto livremente antes de enviar.
+            Destinatário: {isWhatsApp ? waNumber || "sem telemóvel" : charge.debtor_email || "sem email"} · Edite o texto livremente antes de enviar.
           </p>
           <div className="flex justify-end gap-2 flex-wrap">
             <Button variant="ghost" onClick={copy} data-testid="message-modal-copy-btn">

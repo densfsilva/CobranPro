@@ -666,9 +666,19 @@ async def update_charge(charge_id: str, data: ChargeInput, ctx: dict = Depends(r
     if data.status not in ("pendente", "paga", "negociacao", "cancelada"):
         raise HTTPException(status_code=400, detail="Estado inválido")
     updates = data.model_dump()
-    if data.status == "paga" and existing.get("status") != "paga":
-        updates["paid_at"] = datetime.now(timezone.utc).isoformat()
-    elif data.status != "paga":
+    paid_at_in = updates.pop("paid_at", None)
+    if data.status == "paga":
+        if paid_at_in:
+            try:
+                paid_day = date.fromisoformat(paid_at_in[:10])
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Data de recebimento inválida")
+            updates["paid_at"] = paid_at_in if len(paid_at_in) > 10 else f"{paid_day.isoformat()}T12:00:00+00:00"
+        elif existing.get("status") != "paga" or not existing.get("paid_at"):
+            updates["paid_at"] = datetime.now(timezone.utc).isoformat()
+        else:
+            updates["paid_at"] = existing["paid_at"]
+    else:
         updates["paid_at"] = None
     await db.charges.update_one({"id": charge_id}, {"$set": updates})
     updated = await db.charges.find_one({"id": charge_id}, {"_id": 0})
@@ -738,6 +748,175 @@ async def delete_interaction(interaction_id: str, ctx: dict = Depends(get_curren
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Registo não encontrado")
     return {"ok": True}
+
+
+# ---------- Clientes (CRM consolidado por NIF/CNPJ) ----------
+
+CLIENT_FIELDS = ("debtor_name", "debtor_email", "debtor_email2", "debtor_phone", "whatsapp", "debtor_nif", "addr_rua", "addr_localidade", "addr_cp", "addr_estado")
+
+
+def client_key_of(charge: dict) -> str:
+    nif = re.sub(r"\D", "", charge.get("debtor_nif") or "")
+    if nif:
+        return f"nif:{nif}"
+    return "nome:" + re.sub(r"\s+", " ", (charge.get("debtor_name") or "").strip().lower())
+
+
+def build_client_profile(charges: list) -> dict:
+    prof = {k: "" for k in CLIENT_FIELDS}
+    for ch in charges:
+        for k in CLIENT_FIELDS:
+            if not prof[k] and ch.get(k):
+                prof[k] = ch[k]
+    return prof
+
+
+def client_stats(charges: list) -> dict:
+    pend = [c for c in charges if c["status"] == "pendente"]
+    return {
+        "invoice_count": len(charges),
+        "pending_count": len(pend),
+        "pending_total": round(sum(c["amount"] for c in pend), 2),
+        "negotiation_count": sum(1 for c in charges if c["status"] == "negociacao"),
+        "paid_total": round(sum(c["amount"] for c in charges if c["status"] == "paga"), 2),
+        "max_days_overdue": max((c["days_overdue"] for c in pend), default=0),
+    }
+
+
+async def charges_for_key(company_id: str, key: str) -> list:
+    charges = await db.charges.find({"company_id": company_id}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return [compute_aging(c) for c in charges if client_key_of(c) == key]
+
+
+async def client_interactions(company_id: str, key: str, charges: list) -> list:
+    ids = [c["id"] for c in charges]
+    inv = {c["id"]: c["invoice_number"] for c in charges}
+    items = await db.interactions.find(
+        {"company_id": company_id, "$or": [{"charge_id": {"$in": ids}}, {"client_key": key}]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    for it in items:
+        it["invoice_number"] = inv.get(it.get("charge_id"), "")
+    return items
+
+
+@api_router.get("/clients")
+async def list_clients(company: dict = Depends(get_current_company)):
+    cid = company["id"]
+    charges = await db.charges.find({"company_id": cid}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    groups: dict = {}
+    for c in charges:
+        groups.setdefault(client_key_of(c), []).append(compute_aging(c))
+    notes = {d["key"]: d.get("observacoes", "") for d in await db.clients.find({"company_id": cid}, {"_id": 0}).to_list(2000)}
+    charge_key = {c["id"]: client_key_of(c) for c in charges}
+    last_act: dict = {}
+    async for it in db.interactions.find({"company_id": cid}, {"_id": 0, "charge_id": 1, "client_key": 1, "created_at": 1}).sort("created_at", -1):
+        k = charge_key.get(it.get("charge_id")) or it.get("client_key")
+        if k and k not in last_act:
+            last_act[k] = it["created_at"]
+    result = []
+    for key, items in groups.items():
+        result.append({"key": key, **build_client_profile(items), **client_stats(items), "last_activity_at": last_act.get(key), "observacoes": notes.get(key, "")})
+    result.sort(key=lambda r: (-r["pending_total"], r["debtor_name"].lower()))
+    return result
+
+
+async def client_payload(company_id: str, key: str) -> dict:
+    charges = await charges_for_key(company_id, key)
+    if not charges:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    doc = await db.clients.find_one({"company_id": company_id, "key": key}, {"_id": 0})
+    return {
+        "key": key,
+        "profile": build_client_profile(charges),
+        "stats": client_stats(charges),
+        "charges": charges,
+        "interactions": await client_interactions(company_id, key, charges),
+        "observacoes": (doc or {}).get("observacoes", ""),
+    }
+
+
+@api_router.get("/clients/{key}")
+async def get_client(key: str, company: dict = Depends(get_current_company)):
+    return await client_payload(company["id"], key)
+
+
+@api_router.get("/clients/{key}/interactions")
+async def list_client_interactions(key: str, company: dict = Depends(get_current_company)):
+    charges = await charges_for_key(company["id"], key)
+    if not charges:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    return await client_interactions(company["id"], key, charges)
+
+
+class ClientInteractionInput(InteractionInput):
+    charge_id: Optional[str] = None
+
+
+@api_router.post("/clients/{key}/interactions")
+async def add_client_interaction(key: str, data: ClientInteractionInput, company: dict = Depends(get_current_company)):
+    if data.type not in INTERACTION_TYPES:
+        raise HTTPException(status_code=400, detail="Tipo de contacto inválido")
+    charges = await charges_for_key(company["id"], key)
+    if not charges:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "charge_id": None,
+        "client_key": key,
+        "company_id": company["id"],
+        "type": data.type,
+        "note": data.note.strip(),
+        "debtor_name": charges[0]["debtor_name"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if data.charge_id:
+        if data.charge_id not in {c["id"] for c in charges}:
+            raise HTTPException(status_code=400, detail="Fatura não pertence a este cliente")
+        doc["charge_id"] = data.charge_id
+    await db.interactions.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+class ClientUpdateInput(BaseModel):
+    debtor_name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    debtor_email: Optional[str] = None
+    debtor_email2: Optional[str] = None
+    debtor_phone: Optional[str] = None
+    whatsapp: Optional[str] = None
+    debtor_nif: Optional[str] = None
+    addr_rua: Optional[str] = None
+    addr_localidade: Optional[str] = None
+    addr_cp: Optional[str] = None
+    addr_estado: Optional[str] = None
+    observacoes: Optional[str] = Field(default=None, max_length=5000)
+
+
+@api_router.put("/clients/{key}")
+async def update_client(key: str, data: ClientUpdateInput, ctx: dict = Depends(require_admin)):
+    cid = ctx["company"]["id"]
+    charges = await charges_for_key(cid, key)
+    if not charges:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    payload = data.model_dump()
+    observacoes = payload.pop("observacoes")
+    field_updates = {k: v.strip() for k, v in payload.items() if v is not None}
+    ids = [c["id"] for c in charges]
+    if field_updates:
+        await db.charges.update_many({"id": {"$in": ids}}, {"$set": field_updates})
+    new_key = client_key_of({**charges[0], **field_updates})
+    if new_key != key:
+        await db.clients.delete_many({"company_id": cid, "key": new_key})
+        await db.clients.update_many({"company_id": cid, "key": key}, {"$set": {"key": new_key}})
+        await db.interactions.update_many({"company_id": cid, "client_key": key}, {"$set": {"client_key": new_key}})
+    if observacoes is not None:
+        await db.clients.update_one(
+            {"company_id": cid, "key": new_key},
+            {"$set": {"observacoes": observacoes.strip(), "updated_at": datetime.now(timezone.utc).isoformat()},
+             "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
+    return await client_payload(cid, new_key)
 
 
 # ---------- Documents (Anexos) ----------
@@ -915,7 +1094,7 @@ def build_collection_email_html(company: dict, charge: dict) -> str:
     amount = _fmt_money_email(charge["amount"], country)
     days = max((date.today() - date.fromisoformat(charge["due_date"])).days, 0)
     due = date.fromisoformat(charge["due_date"]).strftime("%d/%m/%Y")
-    bank = escape(company.get("iban") or "")
+    bank = escape(company_bank_line(company))
     status_line = (
         f"encontra-se em atraso há <strong>{days} dias</strong>" if days > 0
         else f"tem vencimento a <strong>{due}</strong>"
@@ -1336,7 +1515,7 @@ async def dashboard(ctx: dict = Depends(require_admin)):
         async for ch in db.charges.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "debtor_name": 1}):
             charge_names[ch["id"]] = ch["debtor_name"]
     activities = [
-        {"id": r["id"], "type": r["type"], "note": r["note"], "created_at": r["created_at"], "debtor_name": charge_names.get(r["charge_id"], "")}
+        {"id": r["id"], "type": r["type"], "note": r["note"], "created_at": r["created_at"], "debtor_name": charge_names.get(r.get("charge_id"), r.get("debtor_name", ""))}
         for r in recent
     ]
 
@@ -1389,7 +1568,7 @@ async def weekly_report(ctx: dict = Depends(require_admin)):
         "period": {"from": since[:10], "to": date.today().isoformat()},
         "counts": counts,
         "total_activities": len(interactions),
-        "activities": [{**i, "debtor_name": names.get(i["charge_id"], "")} for i in interactions],
+        "activities": [{**i, "debtor_name": names.get(i.get("charge_id"), i.get("debtor_name", ""))} for i in interactions],
         "paid_this_week": len(paid_week),
         "recovered_this_week": round(sum(c["amount"] for c in paid_week), 2),
         "negotiations": negotiations,
@@ -1407,8 +1586,11 @@ async def require_super_admin(ctx: dict = Depends(get_current_context)) -> dict:
 @api_router.get("/superadmin/companies")
 async def superadmin_companies(ctx: dict = Depends(require_super_admin)):
     companies = await db.companies.find({}, {"_id": 0, "logo_base64": 0}).sort("created_at", -1).to_list(500)
+    users_by = {r["_id"]: r["n"] async for r in db.users.aggregate([{"$group": {"_id": "$company_id", "n": {"$sum": 1}}}])}
+    charges_by = {r["_id"]: r async for r in db.charges.aggregate([{"$group": {"_id": "$company_id", "n": {"$sum": 1}, "volume": {"$sum": "$amount"}}}])}
     result = []
     for c in companies:
+        ch = charges_by.get(c["id"], {})
         result.append({
             "id": c["id"],
             "company_name": c["company_name"],
@@ -1416,10 +1598,97 @@ async def superadmin_companies(ctx: dict = Depends(require_super_admin)):
             "country": c.get("country", "PT"),
             "created_at": c.get("created_at"),
             "blocked": bool(c.get("blocked", False)),
-            "user_count": await db.users.count_documents({"company_id": c["id"]}),
-            "charge_count": await db.charges.count_documents({"company_id": c["id"]}),
+            "user_count": users_by.get(c["id"], 0),
+            "charge_count": ch.get("n", 0),
+            "volume": round(ch.get("volume", 0.0), 2),
+            "plan": c.get("plan", "Trial"),
+            "plan_price": c.get("plan_price", 0.0),
+            "license_id": c.get("license_id", ""),
+            "license_valid_until": c.get("license_valid_until"),
+            "license_status": license_status(c),
         })
     return result
+
+
+def _month_shift(d: date, back: int) -> str:
+    y, m = d.year, d.month - back
+    while m <= 0:
+        m += 12
+        y -= 1
+    return f"{y:04d}-{m:02d}"
+
+
+@api_router.get("/superadmin/overview")
+async def superadmin_overview(ctx: dict = Depends(require_super_admin)):
+    companies = await db.companies.find({}, {"_id": 0, "logo_base64": 0}).to_list(500)
+    users_total = await db.users.count_documents({})
+    agg = [r async for r in db.charges.aggregate([{"$group": {"_id": None, "n": {"$sum": 1}, "volume": {"$sum": "$amount"}}}])]
+    charges_total = agg[0]["n"] if agg else 0
+    volume_total = round(agg[0]["volume"], 2) if agg else 0.0
+    active = [c for c in companies if license_status(c) == "ativa"]
+    mrr = round(sum(c.get("plan_price", 0.0) or 0.0 for c in active), 2)
+    today = date.today()
+    months = [_month_shift(today, i) for i in range(5, -1, -1)]
+    series = []
+    for m in months:
+        in_month = [c for c in companies if (c.get("created_at") or "")[:7] <= m and not c.get("blocked")
+                    and (not c.get("license_valid_until") or c["license_valid_until"][:7] >= m)]
+        series.append({
+            "month": m,
+            "mrr": round(sum(c.get("plan_price", 0.0) or 0.0 for c in in_month), 2),
+            "companies": len(in_month),
+            "new_companies": sum(1 for c in companies if (c.get("created_at") or "")[:7] == m),
+        })
+    plans: dict = {}
+    for c in companies:
+        plans[c.get("plan", "Trial")] = plans.get(c.get("plan", "Trial"), 0) + 1
+    return {
+        "companies_total": len(companies),
+        "companies_active": len(active),
+        "companies_blocked": sum(1 for c in companies if c.get("blocked")),
+        "companies_expired": sum(1 for c in companies if license_status(c) == "expirada"),
+        "users_total": users_total,
+        "charges_total": charges_total,
+        "volume_total": volume_total,
+        "mrr": mrr,
+        "arr": round(mrr * 12, 2),
+        "series": series,
+        "plans": [{"plan": k, "count": v} for k, v in sorted(plans.items(), key=lambda kv: -kv[1])],
+    }
+
+
+class SubscriptionInput(BaseModel):
+    plan: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    plan_price: Optional[float] = Field(default=None, ge=0)
+    license_valid_until: Optional[str] = None
+    regenerate_license: bool = False
+
+
+@api_router.put("/superadmin/companies/{company_id}/subscription")
+async def superadmin_set_subscription(company_id: str, data: SubscriptionInput, ctx: dict = Depends(require_super_admin)):
+    company = await db.companies.find_one({"id": company_id})
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa não encontrada")
+    updates: dict = {}
+    if data.plan is not None:
+        updates["plan"] = data.plan.strip()
+    if data.plan_price is not None:
+        updates["plan_price"] = round(float(data.plan_price), 2)
+    if data.license_valid_until is not None:
+        if data.license_valid_until == "":
+            updates["license_valid_until"] = None
+        else:
+            try:
+                updates["license_valid_until"] = date.fromisoformat(data.license_valid_until[:10]).isoformat()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Data de validade inválida")
+    if data.regenerate_license:
+        updates["license_id"] = new_license_id()
+    if updates:
+        await db.companies.update_one({"id": company_id}, {"$set": updates})
+    updated = await db.companies.find_one({"id": company_id}, {"_id": 0, "logo_base64": 0})
+    return {"id": updated["id"], "plan": updated.get("plan"), "plan_price": updated.get("plan_price"), "license_id": updated.get("license_id"),
+            "license_valid_until": updated.get("license_valid_until"), "license_status": license_status(updated)}
 
 
 class CompanyStatusInput(BaseModel):
@@ -1473,7 +1742,18 @@ async def startup():
     await db.login_attempts.create_index("identifier")
     await db.password_resets.create_index("token", unique=True)
     await db.interactions.create_index("charge_id")
+    await db.interactions.create_index("company_id")
     await db.documents.create_index("charge_id")
+    await db.clients.create_index([("company_id", 1), ("key", 1)], unique=True)
+
+    # Migração: assinatura/licença e contas bancárias estruturadas
+    async for comp in db.companies.find({"$or": [{"license_id": {"$exists": False}}, {"bank_accounts": {"$exists": False}}]}, {"_id": 0}):
+        sets = {}
+        if not comp.get("license_id"):
+            sets.update(default_subscription(comp["email"].lower() == SUPER_ADMIN_EMAIL))
+        if "bank_accounts" not in comp:
+            sets["bank_accounts"] = [{"banco": "", "agencia": "", "conta": "", "iban_pix": comp["iban"]}] if comp.get("iban") else []
+        await db.companies.update_one({"id": comp["id"]}, {"$set": sets})
 
     # Migração: empresas antigas com credenciais na própria empresa → coleção users
     async for comp in db.companies.find({"password_hash": {"$exists": True}}):
@@ -1503,7 +1783,9 @@ async def startup():
                 "company_name": "TechFlow Solutions Lda",
                 "nif": "509876543",
                 "iban": "PT50 0010 0000 1234 5678 9017 5",
+                "bank_accounts": [{"banco": "Banco BPI", "agencia": "", "conta": "", "iban_pix": "PT50 0010 0000 1234 5678 9017 5"}],
                 "country": "PT",
+                **default_subscription(True),
                 "google_client_id": "",
                 "primary_color": "#2563EB",
                 "logo_base64": "",

@@ -14,6 +14,8 @@ import Team from "@/pages/Team";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import SuperAdmin from "@/pages/SuperAdmin";
+import Clients from "@/pages/Clients";
+import ClientDetail from "@/pages/ClientDetail";
 import ResetPassword from "@/pages/ResetPassword";
 import AppLayout from "@/components/AppLayout";
 
@@ -46,6 +48,8 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<Protected><Home /></Protected>} />
           <Route path="/pendentes" element={<Protected><PendingCharges /></Protected>} />
+          <Route path="/clientes" element={<Protected><Clients /></Protected>} />
+          <Route path="/clientes/:key" element={<Protected><ClientDetail /></Protected>} />
           <Route path="/negociacao" element={<Protected><NegotiationCharges /></Protected>} />
           <Route path="/recebidos" element={<Protected><ReceivedHistory /></Protected>} />
           <Route path="/cancelados" element={<Protected><CancelledCharges /></Protected>} />

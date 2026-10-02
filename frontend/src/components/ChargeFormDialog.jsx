@@ -13,13 +13,13 @@ import { Textarea } from "@/components/ui/textarea";
 
 const EMPTY = {
   debtor_name: "", debtor_email: "", debtor_email2: "", debtor_phone: "", whatsapp: "", debtor_nif: "",
-  bank1: "", bank2: "", addr_rua: "", addr_localidade: "", addr_cp: "", addr_estado: "",
+  addr_rua: "", addr_localidade: "", addr_cp: "", addr_estado: "",
   invoice_number: "", amount: "", due_date: "", notes: "",
 };
 
 const MASKS = { debtor_phone: maskPhone, whatsapp: maskPhone, debtor_nif: maskTaxId, addr_cp: maskCep };
 
-export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge = null }) {
+export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge = null, initial = null }) {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [lookupBusy, setLookupBusy] = useState("");
@@ -36,9 +36,12 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
       f.amount = String(charge.amount);
       setForm(f);
     } else {
-      setForm({ ...EMPTY, invoice_number: invoicePrefix(getCountry()) });
+      const c = getCountry();
+      const pre = initial ? Object.fromEntries(Object.keys(EMPTY).filter((k) => initial[k]).map((k) => [k, initial[k]])) : {};
+      setForm({ ...EMPTY, ...pre, invoice_number: invoicePrefix(c) });
+      if (initial?.debtor_nif) looked.current.nif = initial.debtor_nif.replace(/\D/g, "");
     }
-  }, [open, charge]);
+  }, [open, charge, initial]);
 
   const set = (k) => (e) => {
     const v = MASKS[k] ? MASKS[k](e.target.value, country) : e.target.value;
@@ -132,8 +135,6 @@ export default function ChargeFormDialog({ open, onOpenChange, onSaved, charge =
     ["debtor_email2", "Email 2", "email", isBR ? "alternativo@email.com.br" : "alternativo@email.pt", false],
     ["debtor_phone", t("mobile"), "tel", phonePh, false],
     ["whatsapp", "WhatsApp", "tel", phonePh, false],
-    ["bank1", isBR ? "Chave PIX / Conta 1" : "Conta Bancária 1 (IBAN)", "text", "", false],
-    ["bank2", "Conta Bancária 2", "text", "", false],
     ["addr_cp", isBR ? "CEP" : "Código Postal", "text", isBR ? "00000-000" : "0000-000", false],
     ["addr_rua", isBR ? "Endereço (Rua, nº)" : "Rua", "text", isBR ? "Rua, nº, complemento" : "Rua, nº, andar", false],
     ["addr_localidade", isBR ? "Cidade" : "Localidade", "text", "", false],

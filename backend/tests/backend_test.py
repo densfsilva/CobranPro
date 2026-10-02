@@ -290,17 +290,32 @@ class TestBranding:
         r = authed.put(f"{API}/branding", json={"logo_base64": "x" * 2_000_001})
         assert r.status_code == 400
 
-    # Dados da Instituição — address field
+    # Dados da Instituição — endereço detalhado
     def test_address_update_and_persist(self, authed):
-        original = authed.get(f"{API}/auth/me").json().get("address", "")
+        me = authed.get(f"{API}/auth/me").json()
+        original = {k: me.get(k, "") for k in ("addr_rua", "addr_numero", "addr_bairro", "addr_cidade", "addr_cp", "addr_estado")}
         try:
-            r = authed.put(f"{API}/branding", json={"address": "TEST_Rua QA 45, 1000-001 Lisboa"})
+            r = authed.put(f"{API}/branding", json={"addr_rua": "TEST_Rua QA", "addr_numero": "45", "addr_bairro": "Centro", "addr_cidade": "Lisboa", "addr_cp": "1000-001", "addr_estado": "Lisboa"})
             assert r.status_code == 200, r.text
-            assert r.json()["address"] == "TEST_Rua QA 45, 1000-001 Lisboa"
-            assert authed.get(f"{API}/auth/me").json()["address"] == "TEST_Rua QA 45, 1000-001 Lisboa"
+            assert r.json()["addr_numero"] == "45"
+            assert r.json()["address"] == "TEST_Rua QA 45, Centro, 1000-001 Lisboa, Lisboa"
+            assert authed.get(f"{API}/auth/me").json()["addr_cidade"] == "Lisboa"
         finally:
-            authed.put(f"{API}/branding", json={"address": original})
-            assert authed.get(f"{API}/auth/me").json().get("address", "") == original
+            authed.put(f"{API}/branding", json=original)
+            assert authed.get(f"{API}/auth/me").json().get("addr_rua", "") == original["addr_rua"]
+
+    def test_bank_accounts_list(self, authed):
+        me = authed.get(f"{API}/auth/me").json()
+        original = me.get("bank_accounts", [])
+        try:
+            accs = [{"banco": "Banco QA", "agencia": "0001", "conta": "123456-7", "iban_pix": ""}, {"banco": "", "agencia": "", "conta": "", "iban_pix": "PT50 0002 0123 1234 5678 9015 4"}]
+            r = authed.put(f"{API}/branding", json={"bank_accounts": accs})
+            assert r.status_code == 200, r.text
+            assert len(r.json()["bank_accounts"]) == 2
+            assert r.json()["iban"] == "Banco QA · Ag. 0001 · Conta 123456-7"
+            assert "plan" in r.json() and "license_id" in r.json()
+        finally:
+            authed.put(f"{API}/branding", json={"bank_accounts": original})
 
     # i18n country switching (PT/BR)
     def test_country_switch_pt_br_and_invalid(self, authed):

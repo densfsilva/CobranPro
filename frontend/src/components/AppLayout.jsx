@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Clock, Handshake, History, XCircle, FileBarChart, Users, Settings, LogOut, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Clock, Handshake, History, XCircle, FileBarChart, Users, Settings, LogOut, ShieldCheck, Contact } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { t } from "@/lib/i18n";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard", admin: true },
+  { to: "/clientes", label: "Clientes", icon: Contact, testid: "nav-clientes" },
   { to: "/pendentes", label: "Pendentes", icon: Clock, testid: "nav-pendentes" },
   { to: "/negociacao", label: "Em Negociação", icon: Handshake, testid: "nav-negociacao" },
   { to: "/recebidos", label: "Recebidos", icon: History, testid: "nav-recebidos" },
@@ -46,7 +47,7 @@ export default function AppLayout({ children }) {
         <nav className="flex-1 p-3 space-y-1">
           {NAV.filter((n) => (!n.admin || isAdmin) && (!n.super || user?.is_super_admin)).map(({ to, label, labelKey, icon: Icon, testid }) => {
             const resolvedLabel = labelKey ? t(labelKey) : label;
-            const active = location.pathname === to;
+            const active = to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
             return (
               <Link
                 key={to}
