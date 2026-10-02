@@ -22,6 +22,17 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-10-02 — Iteração 20: Restruturação CRM, Configurações, Super-Admin e Inteligência (CONCLUÍDA)
+- Configurações: endereço da empresa em 6 campos (addr_rua, addr_numero, addr_bairro, addr_cidade, addr_cp com lupa ViaCEP/geoapi, addr_estado) — CompanyAddressFields; `address` passa a ser composto no backend (company_address_line); lista de contas bancárias `bank_accounts` [{banco, agencia, conta, iban_pix}] com "+ Adicionar Conta"/remover (BankAccountsEditor, máx 10, linhas vazias descartadas); `iban` serializado = 1ª conta (company_bank_line) e usado nas mensagens/email; migração automática do iban legado; cartão read-only "Assinatura Cobranpro"
+- CRM: bank1/bank2 removidos de ChargeInput, lookup-client e UI; nova coleção `clients` {company_id, key, observacoes}; endpoints GET /api/clients, GET/PUT /api/clients/{key}, GET/POST /api/clients/{key}/interactions (key = nif:<dígitos> | nome:<slug>); PUT atualiza os dados em todas as faturas do cliente, valida colisão de NIF (400) e migra key/observações; página /clientes (lista consolidada, pesquisa, em dívida, maior atraso, última atividade) e /clientes/:key (KPIs, dados, contacto, faturas, timeline, observações, Editar Cliente, Nova Cobrança pré-preenchida, Relatório PDF); nav "Clientes" para todos os roles
+- Timeline Unificada (ActivityTimeline substitui ChargeTimeline): todas as atividades do cliente de todas as faturas + notas gerais, com tag/link da fatura; registo com alvo (Geral/fatura) na ficha do cliente; editar e apagar (AlertDialog); next-contact mantido na ficha de cobrança; dashboard/weekly usam debtor_name snapshot para notas gerais
+- Observações Gerais por cliente (ClientNotesCard) visíveis/editáveis (admin) no fim da ficha do cliente e de cada cobrança; cobrador vê read-only
+- Mensagens editáveis: WhatsAppQuickButton (Dashboard/Pendentes) abre MessageModal com template "Mensagem Rápida" (stopPropagation evita navegação); MessageModal ganha defaultTemplate e usa whatsapp || debtor_phone
+- Recebidos: compute_aging devolve `paid_days_late` (recebimento − vencimento, ≥0); coluna "Dias de Atraso" + atraso médio + PDF; edição da Data de Recebimento (PUT /charges/{id} com paid_at "YYYY-MM-DD" → T12:00:00+00:00, 400 se inválida) via dialog (admin)
+- Relatório de Cobrança PDF (ClientReport) na ficha da cobrança e do cliente: dados do cliente, faturas em aberto com total, últimas 3 atividades (data/tipo/fatura/resumo) e observações gerais
+- Super-Admin redesenhado: GET /api/superadmin/overview (empresas total/ativas/expiradas/bloqueadas, utilizadores, cobranças, volume, MRR/ARR, série 6 meses, planos); PUT /api/superadmin/companies/{id}/subscription (plan, plan_price, license_valid_until ''=vitalícia, regenerate_license → CBP-XXXX-XXXX); empresas ganham plan/plan_price/license_id/license_valid_until (Trial 30 dias por defeito; owner "Proprietário" vitalício; migração no startup); UI com 5 KPIs, 2 gráficos recharts, tabela com plano/mensal/validade/licença/estado e SubscriptionDialog. Nota: licença expirada mostra "Expirada" mas não bloqueia automaticamente — bloqueio continua manual
+- Testes: 98/98 pytest (test_iteration20.py com 23 novos; test_seeded_kpis tornou-se dinâmico) + frontend 100% (iteration_8.json, 0 erros de consola, cobrador validado)
+
 ### 2026-09-08 — Iteração 19: Fluxo de dados BR/PT no formulário (CNPJ, CEP, prefixos) (CONCLUÍDA)
 - Lupa robusta: máscara automática do CNPJ (XX.XXX.XXX/XXXX-XX) em modo BR e NIF (9 dígitos) em PT (masks.js: maskTaxId/taxIdComplete); lookup-client disparado automaticamente ao completar os dígitos (não só no blur), sem repetição para o mesmo valor (ref looked); dados do lookup entram já mascarados (CNPJ, CEP, telefones)
 - CEP inteligente: backend /api/utils/cep-lookup deteta o formato pelo nº de dígitos (8 → ViaCEP Brasil, 7 → geoapi.pt Portugal) independentemente do país da empresa; devolve pais + bairro (BR); cache por dígitos. Frontend: máscara XXXXX-XXX (BR) / XXXX-XXX (PT) e pesquisa automática ao completar; mensagens "CEP"/"Código Postal" conforme país
@@ -167,18 +178,18 @@
 - Testes: 35/35 pytest backend, 11/12 fluxos frontend na 1ª ronda; corrigidos lockout por IP, clipboard sem try/catch, formatação monetária, aria nos dialogs → 35/35 após fix
 
 ## Backlog Priorizado
-- P1: Envio real de WhatsApp/Email (integração Twilio/Resend) em vez de apenas modal pré-preenchido
-- P1: Edição de cobrança na UI (hoje só criar/eliminar/marcar paga)
-- P2: Timeline de comunicações na ficha do devedor (histórico de mensagens preparadas/enviadas)
+- P1: Upload real para Google Drive (anexos)
+- P1: Email de boas-vindas automático no registo de empresa
+- P2: Date picker shadcn pt-PT em vez de inputs date nativos (Recebidos, paid-at, validade da assinatura)
+- P2: Bloqueio automático opcional quando a licença expira (hoje é manual)
 - P2: Traduzir mensagens de validação 422 do Pydantic para PT-PT
-- P2: Date picker shadcn no formulário de Nova Cobrança
-- P2: Múltiplas faturas por devedor agregadas numa única ficha
-- P3: Exportação CSV/PDF do dashboard; notificações de vencimento agendadas
+- P3: Dividir server.py (~1880 linhas) em routers FastAPI (auth, charges, clients, superadmin, utils, reports)
+- P3: Índice TTL em password_resets; CORS com origens explícitas em produção
 
 ## Próximas Tarefas
-1. Confirmar com o utilizador se pretende envio real de mensagens (Twilio/Resend)
-2. Edição inline de cobranças
-3. Histórico de contactos por cobrança
+1. Upload real de anexos para o Google Drive
+2. Email de boas-vindas no registo de nova empresa
+3. Date picker pt-PT (shadcn Calendar) nos campos de data
 
 ## Credenciais de Teste
 Ver `/app/memory/test_credentials.md`

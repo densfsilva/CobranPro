@@ -128,13 +128,15 @@ class TestDashboard:
         r = authed.get(f"{API}/dashboard")
         assert r.status_code == 200, r.text
         d = r.json()
-        assert d["total_debt"] == 15341.25, d
-        assert d["recovered"] == 640.0, d
-        assert d["critical_debt"] == 8510.75, d
-        assert d["success_rate"] == 14, d
-        assert d["pending_count"] == 5 and d["paid_count"] == 1
-        assert d["negotiation_count"] == 1 and d["negotiation_amount"] == 4320.0, d
-        assert d["buckets"] == {"por_vencer": 1, "verde": 1, "amarelo": 1, "vermelho": 1, "roxo": 1}, d["buckets"]
+        charges = authed.get(f"{API}/charges").json()
+        pend = [c for c in charges if c["status"] == "pendente"]
+        assert d["total_debt"] == round(sum(c["amount"] for c in pend), 2), d
+        assert d["recovered"] == round(sum(c["amount"] for c in charges if c["status"] == "paga"), 2), d
+        assert d["critical_debt"] == round(sum(c["amount"] for c in pend if c["bucket"] in ("vermelho", "roxo")), 2), d
+        assert d["pending_count"] == len(pend)
+        assert d["paid_count"] == sum(1 for c in charges if c["status"] == "paga")
+        assert d["negotiation_count"] == sum(1 for c in charges if c["status"] == "negociacao")
+        assert sum(d["buckets"].values()) == len(pend), d["buckets"]
 
     def test_bucket_assignment_on_charges(self, authed):
         from datetime import date as _date

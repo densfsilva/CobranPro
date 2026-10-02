@@ -1,0 +1,41 @@
+{
+  "summary": "Iteração 20 (CRM Clientes + Endereço/Contas detalhadas + Super-Admin assinatura + paid_days_late + Timeline unificada + WhatsApp rápido) validada end-to-end no URL público. BACKEND: 23/23 novos pytest em /app/backend/tests/test_iteration20.py (branding addr_*+bank_accounts com descarte de linhas vazias e 400 para >10 contas; iban derivado da 1ª conta — iban_pix ou 'Banco · Ag. X · Conta Y'; /api/auth/me devolve plan/plan_price/license_id/license_valid_until/license_status; GET /api/clients admin e cobrador; GET /api/clients/{key} com profile/stats/charges/interactions/observacoes e 404 para key inexistente; cada charge no detalhe tem days_overdue/bucket/paid_days_late; cada interação tem invoice_number; POST /api/clients/{key}/interactions aceita nota geral (charge_id null) e nota ligada a fatura, 400 para charge de outro cliente; PUT /api/clients/{key} admin atualiza TODAS as faturas; PUT com só observacoes NÃO altera as faturas; cobrador 403 no PUT; PUT /api/charges/{id} paga + paid_at AAAA-MM-DD grava ISO T12:00:00+00:00 e GET devolve paid_days_late=max(paid-due,0); reverter para pendente anula paid_at; data inválida 400; lookup-client sem bank1/bank2; /superadmin/overview com companies_total/active/blocked/expired, users_total, charges_total, volume_total, mrr, arr, series (6 meses) e plans; cobrador/admin normal 403; /superadmin/companies inclui plan/plan_price/license_id/license_valid_until/license_status/volume; PUT /superadmin/companies/{id}/subscription aplica plan/plan_price/license_valid_until, regenerate_license muda license_id (CBP-XXXX-XXXX hex upper), '' para vitalícia, data inválida 400, 404 para empresa inexistente, data passada → license_status 'expirada' na listagem). Regressão geral 97/98 (1 falha pré-existente em backend_test.py::test_seeded_kpis, assert hardcoded de critical_debt desatualizado face ao seed atual — não relacionado com it.20). FRONTEND (admin denis.ferreira0909): /configuracoes mostra todos os settings-addr-* + bank-account-add-btn + settings-subscription-section + subscription-plan='Proprietário'/valid-until/status/license-id (sem settings-endereco nem settings-iban antigos); adicionar linha banca cria bank-account-{row,banco,agencia,conta,iban,remove}-N (idx 1); /clientes via nav-clientes mostra clientes-count=7, clientes-total-debt=15 341,25 €, 7 client rows; clicar numa linha abre /clientes/nif%3A505678234 com todos os 17 data-testids esperados (page/name/nif/4 KPIs/info/contact/charges/timeline/notes/edit/new-charge/target-select/whatsapp/email); registar nota (timeline-type-nota + timeline-note-input + timeline-add-btn) e apagar via timeline-delete-dialog + timeline-delete-confirm funcionam; abrir cobrança a partir de client-charge-row leva a /cobranca/{id} com debtor-info-card SEM 'Conta Bancária' + view-client-link + charge-print-btn + delete-charge-btn + client-notes-card + timeline-section + print-report-cobranca com -activities e -observacoes; /pendentes com 5 wa-quick-* NÃO navega e abre message-modal com template-rapido-btn + message-modal-textarea editável, Escape fecha sem sair; /recebidos tem recebidos-avg-late + recebido-late-{id} + recebido-edit-paid-{id}; /super-admin KPIs sa-kpi-{companies,users,mrr,volume,plans} (36 empresas, 37 utilizadores, 296 cobranças, 1 002 436,71 € volume), sa-chart-mrr + sa-chart-companies cada um com 1 SVG recharts (0 warnings), tabela 36 linhas com tenant-{plan,price,valid,license,status,subscription}-*; subscription-dialog com plan-input/price-input/valid-until-input/regenerate-checkbox/save-btn. 0 console/pageerror em TODAS as rotas testadas. COBRADOR (cobrador@techflow.pt): /clientes acessível (7 rows), ficha abre, client-edit-btn=0, client-new-charge-btn=0, client-notes-readonly=1 (sem textarea), recebido-edit-paid-*=0 na /recebidos. Estado final restaurado: Settings TechFlow intactas (addr/bank originais repostos pelo pytest), Import Teste Lda subscription reposta ao original, email debtor_email NIF 507654321 reposto, nota TEST_QA20 apagada.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "backend_test.py::TestDashboard::test_seeded_kpis", "issue": "Pré-existente da regressão (não da it.20): assert critical_debt==8510.75 obsoleto, resposta atual é 13241.25 — provavelmente devido a drift no seed_sample_charges entre iterações. Atualizar o teste de regressão."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/recebidos filtros + paid-at-dialog + subscription-valid-until-input", "issues": ["Inputs de data continuam nativos do browser (mm/dd/yyyy en-US) em vários locais — pendente desde a it.5, não bloqueante."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration20.py",
+    "/app/test_reports/pytest/iter20_results.xml",
+    "/app/test_reports/pytest/iter20_full.xml"
+  ],
+  "action_items": [
+    "(LOW) Atualizar backend_test.py::test_seeded_kpis para refletir seed_sample_charges atual (critical_debt=13241.25) OU calcular dinamicamente a partir de /api/charges.",
+    "(LOW/herdado) Substituir inputs type=date nativos pelo Calendar shadcn em pt-PT (afeta ReceivedHistory filtros, paid-at-dialog e subscription-valid-until-input).",
+    "(LOW/herdado) server.py >1800 linhas — dividir em routers; password_resets sem índice TTL; CORS allow_credentials=True com '*' explícitas."
+  ],
+  "critical_code_review_comments": [
+    "server.py agora com 1883 linhas (ultrapassa limite de 700) — já flagado na it.17; split em routers (auth, charges, clients, superadmin, utils, reports) é crítico para manutenibilidade.",
+    "update_client: ao mudar debtor_nif, a key muda mas interactions com charge_id continuam ligadas às faturas certas (OK). Contudo, se outro cliente já tiver essa key, há delete_many destrutivo — considerar merge/validação em vez de delete.",
+    "superadmin_overview series: filtro de 'in_month' usa string compare do created_at[:7] <= m e license_valid_until[:7] >= m — correto para formato ISO, mas vale um comment explicando a convenção."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration20.py"
+  ],
+  "success_rate": {"backend": "100% nos 23 novos (97/98 na suite completa; a 1 falha é pré-existente)", "frontend": "100% (todas as frentes da it.20 validadas, 0 erros de consola)"},
+  "test_credentials": "denis.ferreira0909@gmail.com / Cobrancas2026! (admin+super), cobrador@techflow.pt / Cobrador2026!, import.teste@example.com / teste123456 — todas verificadas login 200",
+  "seed_data_creation": "Nenhum dado persistente criado. Nota timeline TEST_QA20 criada e apagada no mesmo teste. Subscription da 'Import Teste Lda' alterada e reposta ao valor original dentro do mesmo teste. Branding TechFlow (addr_*/bank_accounts) alterado e reposto. debtor_email NIF 507654321 reposto.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteração 20 completa (23/23 pytest novos + 100% UI). Usar /app/backend/tests/test_iteration20.py como regressão (todos os testes restauram o estado). Rotas de /clientes usam key URL-encoded ex. /clientes/nif%3A507654321 (API: /api/clients/nif:507654321). Seletores corretos de login são auth-email-input / auth-password-input / auth-submit-btn (não login-*). Backend tem 1 falha de regressão pré-existente em backend_test.py::test_seeded_kpis (assert critical_debt desatualizado — não é bug de produto). Timeline rows no detalhe do cliente aparecem com data-testid=timeline-row-{id} mas o seletor prefix pode devolver 0 se não houver notas visíveis no momento — a dialog de delete funciona na mesma. ReceivedHistory paid-at-dialog ainda não foi exercitado em POST (recebido-edit-paid com dialog paid-at-input/preview/save-btn existe mas a cobrança paga única é Carla Mendes FT-2026/007 — se testar, repor data).",
+  "rca_of_the_issue": "Sem defeitos funcionais na it.20. A única falha da suite completa (backend_test.py::test_seeded_kpis) é um valor hardcoded obsoleto no teste de regressão antigo, não um problema de código de produção — basta corrigir o valor esperado ou torná-lo dinâmico."
+}

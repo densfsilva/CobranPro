@@ -902,11 +902,14 @@ async def update_client(key: str, data: ClientUpdateInput, ctx: dict = Depends(r
     observacoes = payload.pop("observacoes")
     field_updates = {k: v.strip() for k, v in payload.items() if v is not None}
     ids = [c["id"] for c in charges]
-    if field_updates:
-        await db.charges.update_many({"id": {"$in": ids}}, {"$set": field_updates})
     new_key = client_key_of({**charges[0], **field_updates})
     if new_key != key:
-        await db.clients.delete_many({"company_id": cid, "key": new_key})
+        others = await db.charges.find({"company_id": cid, "id": {"$nin": ids}}, {"_id": 0, "debtor_nif": 1, "debtor_name": 1}).to_list(2000)
+        if any(client_key_of(o) == new_key for o in others):
+            raise HTTPException(status_code=400, detail="Já existe outro cliente com este NIF/CNPJ")
+    if field_updates:
+        await db.charges.update_many({"id": {"$in": ids}}, {"$set": field_updates})
+    if new_key != key:
         await db.clients.update_many({"company_id": cid, "key": key}, {"$set": {"key": new_key}})
         await db.interactions.update_many({"company_id": cid, "client_key": key}, {"$set": {"client_key": new_key}})
     if observacoes is not None:
