@@ -1226,37 +1226,85 @@ async def send_welcome_email(company: dict, user: dict, origin: Optional[str]):
         await db.companies.update_one({"id": company["id"]}, {"$set": {"welcome_email_error": str(getattr(e, "detail", e))[:200]}})
 
 
-@api_router.post("/charges/{charge_id}/send-email")
-async def send_charge_email(charge_id: str, ctx: dict = Depends(get_current_context)):
-    company = ctx["company"]
-    charge = await get_owned_charge(charge_id, company)
+async def dispatch_charge_email(company: dict, charge: dict, source: str = "auto") -> str:
     if not charge.get("debtor_email"):
         raise HTTPException(status_code=400, detail="Esta cobrança não tem email do devedor")
-
     one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
     recent = await db.interactions.find_one({
-        "charge_id": charge_id, "type": "email", "source": "auto",
+        "charge_id": charge["id"], "type": "email", "source": {"$in": ["auto", "bulk"]},
         "created_at": {"$gte": one_hour_ago},
     })
     if recent:
         raise HTTPException(status_code=429, detail="Já foi enviado um email para esta cobrança na última hora")
-
-    country = company.get("country", "PT")
-    inv = "Factura" if country == "PT" else "Fatura"
+    inv = "Factura" if company.get("country", "PT") == "PT" else "Fatura"
     subject = f"Lembrete de pagamento — {inv} {charge['invoice_number']}"
-    html = build_collection_email_html(company, charge)
-    email_id = await send_email(to=charge["debtor_email"], subject=subject, html=html, reply_to=company.get("email"))
-
+    email_id = await send_email(to=charge["debtor_email"], subject=subject, html=build_collection_email_html(company, charge), reply_to=company.get("email"))
     await db.interactions.insert_one({
         "id": str(uuid.uuid4()),
-        "charge_id": charge_id,
+        "charge_id": charge["id"],
         "company_id": company["id"],
         "type": "email",
-        "note": f"Email de cobrança enviado para {charge['debtor_email']} ({inv} {charge['invoice_number']})",
-        "source": "auto",
+        "note": f"Email de cobrança enviado para {charge['debtor_email']} ({inv} {charge['invoice_number']}){' — envio em lote' if source == 'bulk' else ''}",
+        "source": source,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
+    return email_id
+
+
+@api_router.post("/charges/{charge_id}/send-email")
+async def send_charge_email(charge_id: str, ctx: dict = Depends(get_current_context)):
+    company = ctx["company"]
+    charge = await get_owned_charge(charge_id, company)
+    email_id = await dispatch_charge_email(company, charge)
     return {"status": "success", "email_id": email_id}
+
+
+# ---------- Ações em lote ----------
+
+class BulkInput(BaseModel):
+    ids: List[str] = Field(min_length=1, max_length=500)
+    action: str
+
+
+class BulkIdsInput(BaseModel):
+    ids: List[str] = Field(min_length=1, max_length=200)
+
+
+@api_router.post("/charges/bulk")
+async def bulk_charges(data: BulkInput, ctx: dict = Depends(require_admin)):
+    if data.action not in ("mark_paid", "delete"):
+        raise HTTPException(status_code=400, detail="Ação em lote inválida")
+    cid = ctx["company"]["id"]
+    owned = await db.charges.find({"company_id": cid, "id": {"$in": data.ids}}, {"_id": 0, "id": 1, "status": 1}).to_list(len(data.ids))
+    ids = [c["id"] for c in owned]
+    if data.action == "delete":
+        await db.charges.delete_many({"company_id": cid, "id": {"$in": ids}})
+        await db.interactions.delete_many({"charge_id": {"$in": ids}})
+        await db.documents.delete_many({"charge_id": {"$in": ids}})
+        return {"action": "delete", "affected": len(ids), "ignored": len(data.ids) - len(ids)}
+    targets = [c["id"] for c in owned if c["status"] not in ("paga", "cancelada")]
+    if targets:
+        await db.charges.update_many(
+            {"company_id": cid, "id": {"$in": targets}},
+            {"$set": {"status": "paga", "paid_at": datetime.now(timezone.utc).isoformat()}},
+        )
+    return {"action": "mark_paid", "affected": len(targets), "ignored": len(data.ids) - len(targets)}
+
+
+@api_router.post("/charges/bulk-email")
+async def bulk_send_email(data: BulkIdsInput, ctx: dict = Depends(get_current_context)):
+    company = ctx["company"]
+    charges = await db.charges.find({"company_id": company["id"], "id": {"$in": data.ids}}, {"_id": 0}).to_list(len(data.ids))
+    results = {"sent": [], "no_email": [], "rate_limited": [], "failed": []}
+    for ch in charges:
+        item = {"id": ch["id"], "debtor_name": ch["debtor_name"], "invoice_number": ch["invoice_number"], "email": ch.get("debtor_email") or ""}
+        try:
+            item["email_id"] = await dispatch_charge_email(company, ch, source="bulk")
+            results["sent"].append(item)
+        except HTTPException as e:
+            bucket = "no_email" if e.status_code == 400 else "rate_limited" if e.status_code == 429 else "failed"
+            results[bucket].append({**item, "error": e.detail})
+    return {**results, "sent_count": len(results["sent"]), "total": len(charges)}
 
 
 # ---------- Importação PDF (Relatório ERP) ----------

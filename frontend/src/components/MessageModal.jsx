@@ -10,7 +10,7 @@ import { fmtDate } from "@/lib/badges";
 import { money } from "@/lib/format";
 import { t } from "@/lib/i18n";
 
-const TEMPLATES = {
+export const TEMPLATES = {
   rapido: {
     label: "Mensagem Rápida",
     text: "Olá [Nome], vimos que a fatura [Fatura] com vencimento em [Data Vencimento] ainda está pendente. Podemos ajudar?\n\n— [Empresa] · Cobranpro",
@@ -30,7 +30,11 @@ const TEMPLATES = {
 };
 
 export function buildMessage(templateKey, charge, company) {
-  return TEMPLATES[templateKey].text
+  return renderTemplate(TEMPLATES[templateKey].text, charge, company);
+}
+
+export function renderTemplate(text, charge, company) {
+  return text
     .replaceAll("[Nome]", charge.debtor_name)
     .replaceAll("[Fatura]", charge.invoice_number)
     .replaceAll("[Valor]", money(charge.amount))

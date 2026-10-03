@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
 import PeriodFilter, { periodSubtitle } from "@/components/PeriodFilter";
+import { useSelection } from "@/lib/useSelection";
+import { SelectBox, SelectCell } from "@/components/SelectBox";
+import BulkActions from "@/components/BulkActions";
 
 const fmtPaid = (iso) => (iso ? fmtDate(iso.slice(0, 10)) : "—");
 const lateLabel = (d) => String(Math.max(d ?? 0, 0));
@@ -44,6 +47,9 @@ export default function ReceivedHistory() {
 
   const total = recebidos.reduce((s, c) => s + c.amount, 0);
   const avgLate = recebidos.length ? Math.round(recebidos.reduce((s, c) => s + (c.paid_days_late || 0), 0) / recebidos.length) : 0;
+  const sel = useSelection(recebidos);
+  const printRows = sel.count ? sel.selectedItems : recebidos;
+  const printTotal = printRows.reduce((s, c) => s + c.amount, 0);
 
   const openEdit = (e, c) => {
     e.stopPropagation();
@@ -94,6 +100,9 @@ export default function ReceivedHistory() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground uppercase tracking-wider border-b border-border">
+                <th className="pb-3 w-8">
+                  <SelectBox checked={sel.allSelected} indeterminate={sel.someSelected} onChange={sel.toggleAll} testid="recebidos-select-all" label="Selecionar todos" />
+                </th>
                 <th className="pb-3 font-medium">Devedor</th>
                 <th className="pb-3 font-medium">{t("invoice")}</th>
                 <th className="pb-3 font-medium">Vencimento</th>
@@ -105,7 +114,10 @@ export default function ReceivedHistory() {
             </thead>
             <tbody>
               {recebidos.map((c) => (
-                <tr key={c.id} data-testid={`recebido-row-${c.id}`} onClick={() => navigate(`/cobranca/${c.id}`)} className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-secondary/50 transition-colors duration-150">
+                <tr key={c.id} data-testid={`recebido-row-${c.id}`} onClick={() => navigate(`/cobranca/${c.id}`)} className={`border-b border-border/50 last:border-0 cursor-pointer transition-colors duration-150 ${sel.has(c.id) ? "bg-brand-soft" : "hover:bg-secondary/50"}`}>
+                  <SelectCell>
+                    <SelectBox checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} testid={`recebido-select-${c.id}`} label={`Selecionar ${c.invoice_number}`} />
+                  </SelectCell>
                   <td className="py-3 pr-3">
                     <p className="font-medium">{c.debtor_name}</p>
                     <p className="text-xs text-muted-foreground">{c.debtor_nif || "—"}</p>
@@ -131,20 +143,20 @@ export default function ReceivedHistory() {
                 </tr>
               ))}
               {recebidos.length === 0 && (
-                <tr><td colSpan={7} className="py-10 text-center text-muted-foreground" data-testid="recebidos-empty-state">Ainda não há cobranças liquidadas.</td></tr>
+                <tr><td colSpan={8} className="py-10 text-center text-muted-foreground" data-testid="recebidos-empty-state">Ainda não há cobranças liquidadas.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      <PrintReport title="Histórico de Recebidos" subtitle={`${search ? `Filtro: "${search}"` : "Todas as cobranças liquidadas"}${periodSubtitle(from, to)} · Atraso médio: ${avgLate} dias`} testid="print-report-recebidos">
+      <PrintReport title="Histórico de Recebidos" subtitle={`${sel.count ? `Seleção: ${sel.count} ${sel.count === 1 ? "título" : "títulos"}` : search ? `Filtro: "${search}"` : "Todas as cobranças liquidadas"}${periodSubtitle(from, to)} · Atraso médio: ${avgLate} dias`} testid="print-report-recebidos">
         <table style={printTableStyle}>
           <thead>
             <tr>{["Devedor", t("invoice"), "Vencimento", "Recebimento", "Dias de Atraso", "Valor", "Estado"].map((h) => <th key={h} style={["Valor", "Dias de Atraso"].includes(h) ? printThRightStyle : printThStyle}>{h}</th>)}</tr>
           </thead>
           <tbody>
-            {recebidos.map((c) => (
+            {printRows.map((c) => (
               <tr key={c.id}>
                 <td style={printTdStyle}>{c.debtor_name}</td>
                 <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{c.invoice_number}</td>
@@ -158,14 +170,15 @@ export default function ReceivedHistory() {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={5} style={{ ...printTdStyle, fontWeight: 700 }}>Total recuperado ({recebidos.length} registos)</td>
-              <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(total)}</td>
+              <td colSpan={5} style={{ ...printTdStyle, fontWeight: 700 }}>Total recuperado ({printRows.length} registos)</td>
+              <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(printTotal)}</td>
               <td style={printTdStyle} />
             </tr>
           </tfoot>
         </table>
       </PrintReport>
 
+      <BulkActions selection={sel} reload={load} testid="recebidos-bulk" allowPay={false} allowMessage={false} />
       <Dialog open={!!editing} onOpenChange={(v) => !v && setEditing(null)}>
         <DialogContent className="bg-card border-border max-w-sm" data-testid="paid-at-dialog">
           <DialogHeader>

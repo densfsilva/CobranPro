@@ -13,6 +13,9 @@ import ImportPdfDialog from "@/components/ImportPdfDialog";
 import WhatsAppQuickButton from "@/components/WhatsAppQuickButton";
 import PeriodFilter, { periodSubtitle } from "@/components/PeriodFilter";
 import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
+import { useSelection } from "@/lib/useSelection";
+import { SelectBox, SelectCell } from "@/components/SelectBox";
+import BulkActions from "@/components/BulkActions";
 
 export default function PendingCharges() {
   const { isAdmin } = useAuth();
@@ -41,6 +44,9 @@ export default function PendingCharges() {
   }, [charges, search, from, to]);
 
   const total = pendentes.reduce((s, c) => s + c.amount, 0);
+  const sel = useSelection(pendentes);
+  const printRows = sel.count ? sel.selectedItems : pendentes;
+  const printTotal = printRows.reduce((s, c) => s + c.amount, 0);
 
   const [expanded, setExpanded] = useState({});
   const groups = useMemo(() => {
@@ -111,6 +117,9 @@ export default function PendingCharges() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground uppercase tracking-wider border-b border-border">
+                <th className="pb-3 w-8">
+                  <SelectBox checked={sel.allSelected} indeterminate={sel.someSelected} onChange={sel.toggleAll} testid="pendentes-select-all" label="Selecionar todos" />
+                </th>
                 <th className="pb-3 font-medium">Devedor</th>
                 <th className="pb-3 font-medium">{t("invoice")}</th>
                 <th className="pb-3 font-medium">Vencimento</th>
@@ -122,6 +131,7 @@ export default function PendingCharges() {
             <tbody>
               {groups.map((g, gi) => {
                 const isOpen = expanded[gi] !== false;
+                const gSel = g.items.filter((c) => sel.has(c.id)).length;
                 return (
                   <Fragment key={g.name}>
                     <tr
@@ -129,6 +139,9 @@ export default function PendingCharges() {
                       onClick={() => setExpanded({ ...expanded, [gi]: !isOpen })}
                       className="bg-secondary/40 cursor-pointer hover:bg-secondary/70 transition-colors duration-150 border-b border-border"
                     >
+                      <SelectCell>
+                        <SelectBox checked={gSel === g.items.length} indeterminate={gSel > 0 && gSel < g.items.length} onChange={() => sel.setMany(g.items.map((c) => c.id), gSel !== g.items.length)} testid={`debtor-group-select-${gi}`} label={`Selecionar ${g.name}`} />
+                      </SelectCell>
                       <td className="py-3 pr-3" colSpan={3}>
                         <span className="flex items-center gap-2 font-semibold">
                           {isOpen ? <ChevronDown size={15} className="text-brand shrink-0" /> : <ChevronRight size={15} className="text-muted-foreground shrink-0" />}
@@ -147,8 +160,11 @@ export default function PendingCharges() {
                   key={c.id}
                   data-testid={`pendente-row-${c.id}`}
                   onClick={() => navigate(`/cobranca/${c.id}`)}
-                  className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-secondary/50 transition-colors duration-150"
+                  className={`border-b border-border/50 last:border-0 cursor-pointer transition-colors duration-150 ${sel.has(c.id) ? "bg-brand-soft" : "hover:bg-secondary/50"}`}
                 >
+                  <SelectCell>
+                    <SelectBox checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} testid={`pendente-select-${c.id}`} label={`Selecionar ${c.invoice_number}`} />
+                  </SelectCell>
                   <td className="py-3 pl-6 pr-3">
                     <p className="font-medium text-sm">{c.debtor_name}</p>
                   </td>
@@ -169,7 +185,7 @@ export default function PendingCharges() {
                 );
               })}
               {pendentes.length === 0 && (
-                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="pendentes-empty-state">Sem cobranças pendentes. Bom trabalho!</td></tr>
+                <tr><td colSpan={7} className="py-10 text-center text-muted-foreground" data-testid="pendentes-empty-state">Sem cobranças pendentes. Bom trabalho!</td></tr>
               )}
             </tbody>
           </table>
@@ -178,7 +194,7 @@ export default function PendingCharges() {
 
       <PrintReport
         title={`Listagem de Cobranças Pendentes`}
-        subtitle={`${search ? `Filtro: "${search}"` : "Todas as cobranças por liquidar"}${periodSubtitle(from, to)}`}
+        subtitle={`${sel.count ? `Seleção: ${sel.count} ${sel.count === 1 ? "título" : "títulos"}` : search ? `Filtro: "${search}"` : "Todas as cobranças por liquidar"}${periodSubtitle(from, to)}`}
         testid="print-report-pendentes"
       >
         <table style={printTableStyle}>
@@ -186,7 +202,7 @@ export default function PendingCharges() {
             <tr>{["Devedor", "Factura", "Vencimento", "Dias", "Valor", "Estado"].map((h) => <th key={h} style={h === "Valor" ? printThRightStyle : printThStyle}>{h}</th>)}</tr>
           </thead>
           <tbody>
-            {pendentes.map((c) => (
+            {printRows.map((c) => (
               <tr key={c.id}>
                 <td style={printTdStyle}>{c.debtor_name}</td>
                 <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{c.invoice_number}</td>
@@ -199,14 +215,15 @@ export default function PendingCharges() {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={4} style={{ ...printTdStyle, fontWeight: 700 }}>Total ({pendentes.length} registos)</td>
-              <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(total)}</td>
+              <td colSpan={4} style={{ ...printTdStyle, fontWeight: 700 }}>Total ({printRows.length} registos)</td>
+              <td style={{ ...printTdStyle, textAlign: "right", fontWeight: 800, fontFamily: "monospace" }}>{money(printTotal)}</td>
               <td style={printTdStyle} />
             </tr>
           </tfoot>
         </table>
       </PrintReport>
 
+      <BulkActions selection={sel} reload={load} testid="pendentes-bulk" />
       <ChargeFormDialog open={formOpen} onOpenChange={setFormOpen} onSaved={load} />
     </div>
   );

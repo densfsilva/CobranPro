@@ -8,6 +8,9 @@ import { t, invoiceWord } from "@/lib/i18n";
 import { Input } from "@/components/ui/input";
 import PrintReport, { printTableStyle, printThStyle, printThRightStyle, printTdStyle } from "@/components/PrintReport";
 import PeriodFilter, { periodSubtitle } from "@/components/PeriodFilter";
+import { useSelection } from "@/lib/useSelection";
+import { SelectBox, SelectCell } from "@/components/SelectBox";
+import BulkActions from "@/components/BulkActions";
 
 export default function NegotiationCharges() {
   const [charges, setCharges] = useState([]);
@@ -16,9 +19,8 @@ export default function NegotiationCharges() {
   const [to, setTo] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    api.get("/charges").then(({ data }) => setCharges(data));
-  }, []);
+  const load = () => api.get("/charges").then(({ data }) => setCharges(data));
+  useEffect(() => { load(); }, []);
 
   const negociacao = useMemo(() => {
     return charges
@@ -31,6 +33,9 @@ export default function NegotiationCharges() {
   }, [charges, search, from, to]);
 
   const total = negociacao.reduce((s, c) => s + c.amount, 0);
+  const sel = useSelection(negociacao);
+  const printRows = sel.count ? sel.selectedItems : negociacao;
+  const printTotal = printRows.reduce((s, c) => s + c.amount, 0);
 
   return (
     <div className="space-y-6" data-testid="negociacao-page">
@@ -74,6 +79,9 @@ export default function NegotiationCharges() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-muted-foreground uppercase tracking-wider border-b border-border">
+                <th className="pb-3 w-8">
+                  <SelectBox checked={sel.allSelected} indeterminate={sel.someSelected} onChange={sel.toggleAll} testid="negociacao-select-all" label="Selecionar todos" />
+                </th>
                 <th className="pb-3 font-medium">Devedor</th>
                 <th className="pb-3 font-medium">{t("invoice")}</th>
                 <th className="pb-3 font-medium">Vencimento</th>
@@ -88,8 +96,11 @@ export default function NegotiationCharges() {
                   key={c.id}
                   data-testid={`negociacao-row-${c.id}`}
                   onClick={() => navigate(`/cobranca/${c.id}`)}
-                  className="border-b border-border/50 last:border-0 cursor-pointer hover:bg-secondary/50 transition-colors duration-150"
+                  className={`border-b border-border/50 last:border-0 cursor-pointer transition-colors duration-150 ${sel.has(c.id) ? "bg-brand-soft" : "hover:bg-secondary/50"}`}
                 >
+                  <SelectCell>
+                    <SelectBox checked={sel.has(c.id)} onChange={() => sel.toggle(c.id)} testid={`negociacao-select-${c.id}`} label={`Selecionar ${c.invoice_number}`} />
+                  </SelectCell>
                   <td className="py-3 pr-3">
                     <p className="font-medium">{c.debtor_name}</p>
                     <p className="text-xs text-muted-foreground">{c.debtor_nif || "—"}</p>
@@ -117,19 +128,19 @@ export default function NegotiationCharges() {
                 </tr>
               ))}
               {negociacao.length === 0 && (
-                <tr><td colSpan={6} className="py-10 text-center text-muted-foreground" data-testid="negociacao-empty-state">Nenhuma {t("invoiceLower")} em negociação. Use o botão "Em Negociação" na ficha de uma cobrança.</td></tr>
+                <tr><td colSpan={7} className="py-10 text-center text-muted-foreground" data-testid="negociacao-empty-state">Nenhuma {t("invoiceLower")} em negociação. Use o botão "Em Negociação" na ficha de uma cobrança.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
-      <PrintReport title="Relatório de Negociações — Promessas de Pagamento" subtitle={`${search ? `Filtro: "${search}"` : "Todas as faturas em negociação"}${periodSubtitle(from, to)}`} testid="print-report-negociacao">
+      <PrintReport title="Relatório de Negociações — Promessas de Pagamento" subtitle={`${sel.count ? `Seleção: ${sel.count} ${sel.count === 1 ? "título" : "títulos"}` : search ? `Filtro: "${search}"` : "Todas as faturas em negociação"}${periodSubtitle(from, to)}`} testid="print-report-negociacao">
         <table style={printTableStyle}>
           <thead>
             <tr>{["Cliente", t("invoice"), "Valor", "Valor Acordado", "Promessa de Pagamento", "Observações"].map((h) => <th key={h} style={["Valor", "Valor Acordado"].includes(h) ? printThRightStyle : printThStyle}>{h}</th>)}</tr>
           </thead>
           <tbody>
-            {negociacao.map((c) => (
+            {printRows.map((c) => (
               <tr key={c.id}>
                 <td style={printTdStyle}>{c.debtor_name}</td>
                 <td style={{ ...printTdStyle, fontFamily: "monospace" }}>{c.invoice_number}</td>
@@ -142,13 +153,14 @@ export default function NegotiationCharges() {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={2} style={{ ...printTdStyle, fontWeight: 700 }}>Total em negociação ({negociacao.length})</td>
-              <td style={{ ...printTdStyle, fontWeight: 800, fontFamily: "monospace" }}>{money(total)}</td>
+              <td colSpan={2} style={{ ...printTdStyle, fontWeight: 700 }}>Total em negociação ({printRows.length})</td>
+              <td style={{ ...printTdStyle, fontWeight: 800, fontFamily: "monospace" }}>{money(printTotal)}</td>
               <td colSpan={3} style={printTdStyle} />
             </tr>
           </tfoot>
         </table>
       </PrintReport>
+      <BulkActions selection={sel} reload={load} testid="negociacao-bulk" />
     </div>
   );
 }
