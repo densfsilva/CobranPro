@@ -438,7 +438,7 @@ def test_password_hash_format_bcrypt():
 
 
 def test_cors_allows_credentials_with_explicit_origin(api_client):
-    origin = "https://invoice-hub-1224.preview.emergentagent.com"
+    origin = "https://cobranpro-preview.preview.emergentagent.com"
     r = api_client.options(f"{API}/auth/login", headers={
         "Origin": origin,
         "Access-Control-Request-Method": "POST",

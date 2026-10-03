@@ -39,7 +39,7 @@ class TestForgotPassword:
 
     def test_forgot_existing_email_same_response_and_creates_token(self, mongo_db):
         r = requests.post(f"{API}/auth/forgot-password",
-                          json={"email": TEST_CO_EMAIL, "origin": "https://invoice-hub-1224.preview.emergentagent.com"})
+                          json={"email": TEST_CO_EMAIL, "origin": "https://cobranpro-preview.preview.emergentagent.com"})
         assert r.status_code == 200, r.text
         assert "Se o email existir" in r.json().get("message", "")
         rec = mongo_db.password_resets.find_one({"email": TEST_CO_EMAIL, "used": False},

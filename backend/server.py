@@ -13,6 +13,7 @@ import logging
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional, List
 
+import asyncio
 import io
 import ipaddress
 import json
@@ -230,6 +231,7 @@ class RegisterInput(BaseModel):
     full_name: Optional[str] = None
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
+    origin: Optional[str] = None
 
 
 class LoginInput(BaseModel):
@@ -322,6 +324,7 @@ async def register(data: RegisterInput):
     }
     await db.users.insert_one(user)
     await seed_sample_charges(company["id"])
+    asyncio.create_task(send_welcome_email(company, user, data.origin))
     return {"token": create_token(user["id"], email, company["id"], "admin"), "company": serialize_company(company), "user": serialize_user(user)}
 
 
@@ -1149,6 +1152,80 @@ def build_collection_email_html(company: dict, charge: dict) -> str:
 </td></tr></table>'''
 
 
+def build_welcome_email_html(company: dict, user: dict, app_url: str) -> str:
+    company_name = escape(company["company_name"])
+    first_name = escape((user.get("full_name") or company["company_name"]).split()[0])
+    initials = escape("".join(w[0] for w in company["company_name"].split()[:2]).upper())
+    valid_until = company.get("license_valid_until")
+    plan_line = (
+        f'Plano <strong>{escape(company.get("plan", "Trial"))}</strong> ativo até <strong>{date.fromisoformat(valid_until).strftime("%d/%m/%Y")}</strong>'
+        if valid_until else f'Plano <strong>{escape(company.get("plan", "Trial"))}</strong> com validade vitalícia'
+    )
+    steps = (
+        ("Personalize a identidade", "Carregue o logótipo, defina a cor da marca e os dados bancários em Configurações."),
+        ("Registe as cobranças", "Crie faturas manualmente ou importe o relatório do seu ERP em PDF com extração por IA."),
+        ("Convide a equipa", "Adicione cobradores em Equipa e acompanhe tudo no Dashboard."),
+    )
+    steps_html = "".join(
+        f'<tr><td style="padding:10px 0;vertical-align:top;width:32px"><div style="width:26px;height:26px;border-radius:13px;background:#2563EB;color:#fff;font-size:13px;font-weight:bold;text-align:center;line-height:26px">{i}</div></td>'
+        f'<td style="padding:10px 0 10px 8px"><p style="margin:0;font-size:14px;color:#0f172a;font-weight:bold">{escape(t)}</p>'
+        f'<p style="margin:2px 0 0;font-size:13px;color:#475569;line-height:1.5">{escape(d)}</p></td></tr>'
+        for i, (t, d) in enumerate(steps, 1)
+    )
+    cta = (
+        f'<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:28px auto 0"><tr>'
+        f'<td style="background:#2563EB;border-radius:8px;text-align:center">'
+        f'<a href="{escape(app_url)}" style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none">Aceder ao Cobranpro</a>'
+        f'</td></tr></table>'
+        if app_url else ""
+    )
+    return f'''<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 0">
+<tr><td align="center">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial,sans-serif">
+  <tr><td style="background:#0B0F1A;padding:28px 32px">
+    <p style="margin:0;font-size:22px;font-weight:800;color:#ffffff">Cobran<span style="color:#2563EB">pro</span></p>
+    <p style="margin:4px 0 0;font-size:12px;color:#8B94A7">Gestão de Cobranças Profissional</p>
+  </td></tr>
+  <tr><td style="padding:32px">
+    <p style="margin:0 0 16px;font-size:18px;color:#0f172a;font-weight:bold">Bem-vindo, {first_name}!</p>
+    <p style="margin:0 0 24px;font-size:14px;color:#334155;line-height:1.6">
+      A conta da <strong>{company_name}</strong> foi criada com sucesso. Já pode começar a recuperar faturas em atraso
+      com mensagens WhatsApp e email prontas a enviar, timeline de contactos e relatórios executivos.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:24px">
+      <tr><td style="padding:4px 0;font-size:13px;color:#64748b">Empresa</td>
+          <td style="padding:4px 0;text-align:right;font-size:13px;color:#0f172a;font-weight:bold">{initials} · {company_name}</td></tr>
+      <tr><td style="padding:4px 0;font-size:13px;color:#64748b">Acesso</td>
+          <td style="padding:4px 0;text-align:right;font-size:13px;color:#0f172a">{escape(user["email"])}</td></tr>
+      <tr><td style="padding:4px 0;font-size:13px;color:#64748b">Subscrição</td>
+          <td style="padding:4px 0;text-align:right;font-size:13px;color:#0f172a">{plan_line}</td></tr>
+      <tr><td style="padding:4px 0;font-size:13px;color:#64748b">Licença</td>
+          <td style="padding:4px 0;text-align:right;font-size:13px;color:#0f172a;font-family:monospace">{escape(company.get("license_id", ""))}</td></tr>
+    </table>
+    <p style="margin:0 0 4px;font-size:13px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;font-weight:bold">Primeiros passos</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{steps_html}</table>
+    {cta}
+    <p style="margin:28px 0 0;font-size:12px;color:#94a3b8;line-height:1.6">
+      Recebeu este email porque criou uma conta na plataforma {escape(EMAIL_FROM_NAME)}.
+      Nunca pedimos palavras-passe ou dados de cartão por email.</p>
+  </td></tr>
+</table>
+</td></tr></table>'''
+
+
+async def send_welcome_email(company: dict, user: dict, origin: Optional[str]):
+    app_url = (origin or "").strip().rstrip("/")
+    if not app_url.lower().startswith("https://"):
+        app_url = ""
+    try:
+        html = build_welcome_email_html(company, user, app_url)
+        email_id = await send_email(to=user["email"], subject="Bem-vindo ao Cobranpro — a sua conta está pronta", html=html)
+        await db.companies.update_one({"id": company["id"]}, {"$set": {"welcome_email_sent_at": datetime.now(timezone.utc).isoformat(), "welcome_email_id": email_id}})
+        logger.info("Email de boas-vindas enviado para %s (%s)", user["email"], email_id)
+    except Exception as e:
+        logger.error("Falha ao enviar email de boas-vindas para %s: %s", user["email"], e)
+        await db.companies.update_one({"id": company["id"]}, {"$set": {"welcome_email_error": str(getattr(e, "detail", e))[:200]}})
+
+
 @api_router.post("/charges/{charge_id}/send-email")
 async def send_charge_email(charge_id: str, ctx: dict = Depends(get_current_context)):
     company = ctx["company"]
@@ -1610,6 +1687,8 @@ async def superadmin_companies(ctx: dict = Depends(require_super_admin)):
             "license_id": c.get("license_id", ""),
             "license_valid_until": c.get("license_valid_until"),
             "license_status": license_status(c),
+            "welcome_email_sent_at": c.get("welcome_email_sent_at"),
+            "welcome_email_error": c.get("welcome_email_error"),
         })
     return result
 

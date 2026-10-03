@@ -22,6 +22,12 @@
 6. Modal de preparação de mensagem WhatsApp/Email com templates pré-preenchidos ([Nome], [Valor], [Fatura], [IBAN], [Dias])
 
 ## Implementado
+### 2026-10-03 — Iteração 21: Email de Boas-Vindas automático no registo (CONCLUÍDA)
+- POST /api/auth/register aceita `origin` opcional (frontend envia window.location.origin); após criar empresa+admin+seed dispara `send_welcome_email` em background (asyncio.create_task) — o registo nunca falha por causa do email
+- Template `build_welcome_email_html`: header Cobranpro, saudação pelo 1º nome, cartão com Empresa/Acesso/Subscrição (plano + validade ou vitalícia)/Licença, 3 "Primeiros passos" (identidade, cobranças/import IA, equipa), CTA "Aceder ao Cobranpro" só se origin for https (passa no _assert_safe_email)
+- Resultado registado na empresa: `welcome_email_sent_at` + `welcome_email_id` (sucesso) ou `welcome_email_error` (falha, ex.: Resend 422 undeliverable_recipient para @example.com); expostos em GET /api/superadmin/companies
+- Testes: tests/test_iteration21.py (3) — envio real para delivered+<ts>@resend.dev confirmado com id Resend; destinatário bloqueado mantém registo 200 e grava erro; registo sem origin aceite. Regressão 98/98 mantida (101 total)
+
 ### 2026-10-02 — Iteração 20: Restruturação CRM, Configurações, Super-Admin e Inteligência (CONCLUÍDA)
 - Configurações: endereço da empresa em 6 campos (addr_rua, addr_numero, addr_bairro, addr_cidade, addr_cp com lupa ViaCEP/geoapi, addr_estado) — CompanyAddressFields; `address` passa a ser composto no backend (company_address_line); lista de contas bancárias `bank_accounts` [{banco, agencia, conta, iban_pix}] com "+ Adicionar Conta"/remover (BankAccountsEditor, máx 10, linhas vazias descartadas); `iban` serializado = 1ª conta (company_bank_line) e usado nas mensagens/email; migração automática do iban legado; cartão read-only "Assinatura Cobranpro"
 - CRM: bank1/bank2 removidos de ChargeInput, lookup-client e UI; nova coleção `clients` {company_id, key, observacoes}; endpoints GET /api/clients, GET/PUT /api/clients/{key}, GET/POST /api/clients/{key}/interactions (key = nif:<dígitos> | nome:<slug>); PUT atualiza os dados em todas as faturas do cliente, valida colisão de NIF (400) e migra key/observações; página /clientes (lista consolidada, pesquisa, em dívida, maior atraso, última atividade) e /clientes/:key (KPIs, dados, contacto, faturas, timeline, observações, Editar Cliente, Nova Cobrança pré-preenchida, Relatório PDF); nav "Clientes" para todos os roles
@@ -180,17 +186,17 @@
 
 ## Backlog Priorizado
 - P1: Upload real para Google Drive (anexos)
-- P1: Email de boas-vindas automático no registo de empresa
 - P2: Date picker shadcn pt-PT em vez de inputs date nativos (Recebidos, paid-at, validade da assinatura)
 - P2: Bloqueio automático opcional quando a licença expira (hoje é manual)
+- P2: Mostrar estado do email de boas-vindas (welcome_email_sent_at/error) na tabela do Super-Admin
 - P2: Traduzir mensagens de validação 422 do Pydantic para PT-PT
-- P3: Dividir server.py (~1880 linhas) em routers FastAPI (auth, charges, clients, superadmin, utils, reports)
+- P3: Dividir server.py (~1970 linhas) em routers FastAPI (auth, charges, clients, superadmin, utils, reports)
 - P3: Índice TTL em password_resets; CORS com origens explícitas em produção
 
 ## Próximas Tarefas
 1. Upload real de anexos para o Google Drive
-2. Email de boas-vindas no registo de nova empresa
-3. Date picker pt-PT (shadcn Calendar) nos campos de data
+2. Date picker pt-PT (shadcn Calendar) nos campos de data
+3. Indicador de boas-vindas enviado no Super-Admin
 
 ## Credenciais de Teste
 Ver `/app/memory/test_credentials.md`

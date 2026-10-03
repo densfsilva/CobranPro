@@ -28,7 +28,7 @@ export default function AuthPage() {
         return;
       }
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
-      const payload = mode === "login" ? { email: form.email, password: form.password } : form;
+      const payload = mode === "login" ? { email: form.email, password: form.password } : { ...form, origin: window.location.origin };
       const { data } = await api.post(endpoint, payload);
       login(data.token, data.company, data.user);
       navigate("/");
